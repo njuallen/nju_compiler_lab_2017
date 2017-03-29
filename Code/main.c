@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "lexical.h"
+#include "lex.yy.c"
 
 int main(int argc, char** argv) {
     // we only deal with one input c source file
@@ -15,7 +15,7 @@ int main(int argc, char** argv) {
     }
     int token_value;
     while((token_value = yylex()) != 0) {
-        printf("%s: %s\n", tokens[token_value].name, yytext);
+        printf("%s:%s\n", tokens[token_value].name, yytext);
     }
     return 0;
 }
