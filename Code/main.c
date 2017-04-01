@@ -1,5 +1,8 @@
 #include <stdio.h>
-#include "lex.yy.c"
+#include "syntax.tab.h"
+#include "syntax.h"
+
+extern struct syntax_node *root;
 
 int main(int argc, char** argv) {
     // we only deal with one input c source file
@@ -8,14 +11,15 @@ int main(int argc, char** argv) {
         return 2;
     }
 
-    extern FILE* yyin;
-    if (!(yyin = fopen(argv[1], "r"))) {
+    FILE* f = NULL;
+    if (!(f = fopen(argv[1], "r"))) {
         perror(argv[1]);
         return 1;
     }
-    int token_value;
-    while((token_value = yylex()) != 0) {
-        printf("%s:%s\n", tokens[token_value].name, yytext);
-    }
+    yyrestart(f);
+    yyparse();
+
+    print_syntax_tree(root, 0);
+    delete_syntax_tree(root);
     return 0;
 }

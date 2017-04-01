@@ -1,23 +1,29 @@
 %{
 #include <stdio.h>
-#include "lex.h"
-struct token tokens[] = {
-    {0, "JUST_A_PLACE_HOLDER"},
-    {INT, "INT"}, {FLOAT, "FLOAT"}, {ID, "ID"},
-    {SEMI, "SEMI"}, {COMMA, "COMMA"}, {ASSIGNOP, "ASSIGNOP"},
-    {RELOP, "RELOP"}, {PLUS, "PLUS"}, {MINUS, "MINUS"},
-    {STAR, "STAR"}, {DIV, "DIV"}, {AND, "AND"},
-    {OR, "OR"}, {DOT, "DOT"}, {NOT, "NOT"},
-    {TYPE, "TYPE"}, {LP, "LP"}, {RP, "RP"},
-    {LB, "LB"}, {RB, "RB"}, {LC, "LC"},
-    {RC, "RC"}, {STRUCT, "STRUCT"}, {RETURN, "RETURN"},
-    {IF, "IF"}, {ELSE, "ELSE"}, {WHILE, "WHILE"},
-    {INVALID, "INVALID"}
-};
+#include <stdlib.h>
+#include <limits.h>
+#include <math.h>
+#include "syntax.tab.h"
+#include "csapp.h"
+
+int get_integer(int *val, int base, char *msg);
+int get_float(float *val, char *msg);
+void lexical_error(char *msg);
+
+int yycolumn = 1;
+#define YY_USER_ACTION \
+    yylloc.first_line = yylloc.last_line = yylineno; \
+    yylloc.first_column = yycolumn; \
+    yylloc.last_column = yycolumn + yyleng - 1; \
+    yycolumn += yyleng;
 %}
+
+%option yylineno
 
 digit [0-9]
 digits {digit}+
+letter [a-zA-Z]
+letter_ ({letter}|_)
 
 /* integer literal
  * read this link: http://en.cppreference.com/w/cpp/language/integer_literal
@@ -30,24 +36,37 @@ decimal ((0|([1-9]{digit}*)))
 
 /* octal-literal is the digit zero (0) 
  * followed by zero or more octal digits (0, 1, 2, 3, 4, 5, 6, 7)
+ * correct one: oct (0[0-7]*)
+ * but we will use the one below to let strtol catch more errors for us
  */
-oct (0[0-7]*)
+oct (0{digit}*)
 
 /* hex-literal is the character sequence 0x or the character sequence 0X 
  * followed by one or more hexadecimal digits 
  * (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, a, A, b, B, c, C, d, D, e, E, f, F) 
+ * correct one: hex (0[xX][0-9a-fA-F]+)
+ * but we will use the one below to let strtol catch more errors for us
  */
-hex (0[xX][0-9a-fA-F]+)
+hex (0[xX]({digit}|{letter})+)
 
 /* floating point literal
  * link: http://en.cppreference.com/w/cpp/language/floating_literal
+ * correct exp_part should be: exp_part ([eE][+-]?{digits})
+ * but we will use the one below to catch invalid float numbers with exponents
  */
 
 significand_full {digits}\.{digits}
 significand_no_integer \.{digits}
 significand_no_fraction {digits}\.
-exp_part ([eE][+-]?{digits})
-white_spaces ([ \t\n]+)
+
+/* define exp_part as this, so invalid float point numbers such as:
+ * 1e+7.f1
+ * 1E-7F
+ */
+exp_part ([eE][+-]?({digits}|{letter}|\.)*)
+significand_with_dot ({significand_full}|{significand_no_integer}|{significand_no_fraction})
+significand_without_dot {digits}
+float_number (({significand_with_dot}{exp_part}?)|({significand_without_dot}{exp_part}))
 
 /* identifiers
  * A valid identifier is a sequence of one or more letters, digits, 
@@ -61,18 +80,46 @@ white_spaces ([ \t\n]+)
  * In no case can they begin with a digit.
  */
 
-letter_ [a-zA-Z_]
-letter_s [a-zA-Z_]+
+identifier {letter_}({letter_}|{digit})*
 
+white_spaces ([ \t]+)
 %%
-({decimal}|{oct}|{hex}) { return INT; }
-{significand_full}({exp_part})? { return FLOAT; }
-({significand_no_integer}|{significand_no_fraction})({exp_part})? { return FLOAT; }
-{digits}{exp_part} { return FLOAT; }
+{decimal} {
+    int val;
+    if(!get_integer(&val, 10, "Illegal decimal number")) {
+        yylval.int_value = val;
+        return INT;
+    }
+}
+
+{oct} {
+    int val;
+    if(!get_integer(&val, 8, "Illegal octal number")) {
+        yylval.int_value = val;
+        return INT;
+    }
+}
+
+{hex} {
+    int val;
+    if(!get_integer(&val, 16, "Illegal hexadecimal number")) {
+        yylval.int_value = val;
+        return INT;
+    }
+}
+
+{float_number} {
+    float val;
+    if(!get_float(&val, "Illegal float number")) {
+        yylval.float_value = val;
+        return FLOAT;
+    }
+}
+
 ";" { return SEMI; }
 "," { return COMMA; }
 "=" { return ASSIGNOP; }
-("<"|">"|">="|"<="|"!="|"==") { return RELOP; }
+("<"|">"|">="|"<="|"!="|"==") {  yylval.string_value = Strdup(yytext); return RELOP; }
 "+" { return PLUS; }
 "-" { return MINUS; }
 "*" { return STAR; }
@@ -87,13 +134,57 @@ letter_s [a-zA-Z_]+
 "]" { return RB; }
 "{" { return LC; }
 "}" { return RC; }
-"int"|"float" { return TYPE; }
+"int"|"float" { yylval.string_value = Strdup(yytext); return TYPE; }
 "struct" { return STRUCT; }
 "return" { return RETURN; }
 "if" { return IF; }
 "else" { return ELSE; }
 "while" { return WHILE; }
-{letter_s}({letter_s}|{digit})* { return ID; }
+{identifier} { yylval.string_value = Strdup(yytext); return ID; }
 {white_spaces} { ; }
-. { return INVALID; }
+\n { yycolumn = 1; }
+. {
+    lexical_error("Mysterious characters");
+}
 %%
+
+int get_integer(int *val, int base, char *msg) {
+    char *endptr = NULL;
+    long int value = strtol(yytext, &endptr, base);
+    if(*endptr != '\0') {
+        lexical_error(msg);
+        return -1;
+    }
+    // check for out of range integers
+    if(value < INT_MIN || value > INT_MAX) {
+        lexical_error("Integer constant is out of range");
+        return -1;
+    }
+    else {
+        *val = value;
+        return 0;
+    }
+}
+
+int get_float(float *val, char *msg) {
+    char *endptr = NULL;
+    float value = strtof(yytext, &endptr);
+    if(*endptr != '\0') {
+        lexical_error(msg);
+        return -1;
+    }
+    // check for out of range integers
+    if(value < -HUGE_VALF || value > HUGE_VALF) {
+        lexical_error("Float constant is out of range");
+        return -1;
+    }
+    else {
+        *val = value;
+        return 0;
+    }
+}
+
+void lexical_error(char *msg) {
+    printf("Error type A at Line %d: %s \'%s\'\n",
+            yylineno, msg, yytext);
+}

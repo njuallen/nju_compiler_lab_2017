@@ -1,0 +1,34 @@
+Program
+  ExtDefList
+    ExtDef
+      Specifier
+        TYPE: int
+      FunDec
+        ID: inc
+        LP
+        RP
+      CompSt
+        LC
+        DefList
+          Def
+            Specifier
+              TYPE: int
+            DecList
+              Dec
+                VarDec
+                  ID: i
+            SEMI
+        StmtList
+          Stmt
+            Exp
+              Exp
+                ID: i
+              ASSIGNOP
+              Exp
+                Exp
+                  ID: i
+                PLUS
+                Exp
+                  INT: 1
+            SEMI
+        RC
