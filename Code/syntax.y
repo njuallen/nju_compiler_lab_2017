@@ -7,9 +7,16 @@
 struct syntax_node *root;
 struct syntax_node *create_node(int node_type, int is_empty);
 struct syntax_node *connect_node(int argc, ...);
+/* use this to let main function know:
+ * whether there is no error
+ * or we have done some error recovery and 
+ * successfully built a syntax tree
+ */
+int is_successful = 1;
 %}
 
 %locations
+%define parse.error verbose
 
 /* declared types */
 %union {
@@ -74,6 +81,11 @@ ExtDef : Specifier ExtDecList SEMI {
     $$ = create_node(ExtDef, 0);
     $$->child = connect_node(2, $1, semi);
 }
+| error SEMI {
+    yyerrok;
+    is_successful = 0;
+    $$ = create_node(ExtDef, 1);
+}
 | Specifier FunDec CompSt {
     $$ = create_node(ExtDef, 0);
     $$->child = connect_node(3, $1, $2, $3);
@@ -111,6 +123,11 @@ StructSpecifier : STRUCT OptTag LC DefList RC {
     struct syntax_node *rc = create_node(RC, 0);
     $$ = create_node(StructSpecifier, 0);
     $$->child = connect_node(5, structure, $2, lc, $4, rc);
+}
+| STRUCT OptTag LC error RC {
+    yyerrok;
+    is_successful = 0;
+    $$ = create_node(StructSpecifier, 1);
 }
 | STRUCT Tag {
     struct syntax_node *structure = create_node(STRUCT, 0);
@@ -154,6 +171,11 @@ VarDec : ID {
     $$ = create_node(VarDec, 0);
     $$->child = connect_node(4, $1, lb, integer, rb);
 }
+| VarDec LB error RB {
+    yyerrok;
+    is_successful = 0;
+    $$ = create_node(VarDec, 1);
+}
 ;
 
 FunDec : ID LP VarList RP {
@@ -163,6 +185,11 @@ FunDec : ID LP VarList RP {
     struct syntax_node *rp = create_node(RP, 0);
     $$ = create_node(FunDec, 0);
     $$->child = connect_node(4, id, lp, $3, rp);
+}
+| ID LP error RP {
+    yyerrok;
+    is_successful = 0;
+    $$ = create_node(FunDec, 1);
 }
 | ID LP RP {
     struct syntax_node *id = create_node(ID, 0);
@@ -199,6 +226,11 @@ CompSt : LC DefList StmtList RC {
     $$ = create_node(CompSt, 0);
     $$->child = connect_node(4, lc, $2, $3, rc);
 }
+| LC error RC {
+    yyerrok;
+    is_successful = 0;
+    $$ = create_node(CompSt, 1);
+}
 ;
 
 StmtList : {
@@ -225,12 +257,38 @@ Stmt : Exp SEMI {
     $$ = create_node(Stmt, 0);
     $$->child = connect_node(3, return_token, $2, semi);
 }
+| error SEMI {
+    /* according to this bison manual page
+     * link : https://www.gnu.org/software/bison/manual/html_node/Error-Recovery.html#Error-Recovery
+     * To prevent an outpouring of error messages, 
+     * the parser will output no error message for another syntax 
+     * error that happens shortly after the first; 
+     * only after three consecutive input tokens have been successfully 
+     * shifted will error messages resume. 
+     *
+     * But our compiler lab requires that for every syntax error line
+     * we should output an syntax error message
+     * So we use yyerrok to let bison return to its normal mode
+     * so that consecutive errors will not be supressed
+     */
+    yyerrok;
+    is_successful = 0;
+    /* remember to create an empty production rule node for it
+     * or its parent will encounter an segment fault when call connect_node
+     */
+    $$ = create_node(Stmt, 1);
+}
 | IF LP Exp RP Stmt %prec LOWER_THAN_ELSE {
     struct syntax_node *if_token = create_node(IF, 0);
     struct syntax_node *lp = create_node(LP, 0);
     struct syntax_node *rp = create_node(RP, 0);
     $$ = create_node(Stmt, 0);
     $$->child = connect_node(5, if_token, lp, $3, rp, $5);
+}
+| IF LP error RP Stmt %prec LOWER_THAN_ELSE {
+    yyerrok;
+    is_successful = 0;
+    $$ = create_node(Stmt, 1);
 }
 | IF LP Exp RP Stmt ELSE Stmt {
     struct syntax_node *if_token = create_node(IF, 0);
@@ -240,12 +298,22 @@ Stmt : Exp SEMI {
     $$ = create_node(Stmt, 0);
     $$->child = connect_node(7, if_token, lp, $3, rp, $5, else_token, $7);
 }
+| IF LP error RP Stmt ELSE Stmt {
+    yyerrok;
+    is_successful = 0;
+    $$ = create_node(Stmt, 1);
+}
 | WHILE LP Exp RP Stmt {
     struct syntax_node *while_token = create_node(WHILE, 0);
     struct syntax_node *lp = create_node(LP, 0);
     struct syntax_node *rp = create_node(RP, 0);
     $$ = create_node(Stmt, 0);
     $$->child = connect_node(5, while_token, lp, $3, rp, $5);
+}
+| WHILE LP error RP Stmt {
+    yyerrok;
+    is_successful = 0;
+    $$ = create_node(Stmt, 1);
 }
 ;
 
@@ -264,6 +332,11 @@ Def : Specifier DecList SEMI {
     struct syntax_node *semi = create_node(SEMI, 0);
     $$ = create_node(Def, 0);
     $$->child = connect_node(3, $1, $2, semi);
+}
+| error SEMI {
+    yyerrok;
+    is_successful = 0;
+    $$ = create_node(Def, 1);
 }
 ;
 
@@ -338,6 +411,11 @@ Exp : Exp ASSIGNOP Exp {
     $$ = create_node(Exp, 0);
     $$->child = connect_node(3, lp, $2, rp);
 }
+| LP error RP {
+    yyerrok;
+    is_successful = 0;
+    $$ = create_node(Exp, 1);
+}
 | MINUS Exp %prec UNARY_MINUS {
     struct syntax_node *minus = create_node(MINUS, 0);
     $$ = create_node(Exp, 0);
@@ -356,6 +434,11 @@ Exp : Exp ASSIGNOP Exp {
     $$ = create_node(Exp, 0);
     $$->child = connect_node(4, id, lp, $3, rp);
 }
+| ID LP error RP {
+    yyerrok;
+    is_successful = 0;
+    $$ = create_node(Exp, 1);
+}
 | ID LP RP {
     struct syntax_node *id = create_node(ID, 0);
     id->value.string_value = $1;
@@ -369,6 +452,11 @@ Exp : Exp ASSIGNOP Exp {
     struct syntax_node *rb = create_node(RB, 0);
     $$ = create_node(Exp, 0);
     $$->child = connect_node(4, $1, lb, $3, rb);
+}
+| Exp LB error RB {
+    yyerrok;
+    is_successful = 0;
+    $$ = create_node(Exp, 1);
 }
 | Exp DOT ID {
     struct syntax_node *dot = create_node(DOT, 0);
@@ -412,9 +500,13 @@ Args : Exp COMMA Args {
 #include "lex.yy.c"
 
 extern char *yytext;
-void yyerror(char *s)
-{
-  fprintf(stderr, "ERROR line %d: %s token: %s\n", yylloc.first_line, s, yytext);
+
+/* do not print to stderr
+ * or my testscript won't work
+ */
+void yyerror(char *s) {
+    printf("Error type B at Line %d: %s.\n", 
+        yylloc.first_line, s);
 }
 
 struct syntax_node *create_node(int node_type, int is_empty) {

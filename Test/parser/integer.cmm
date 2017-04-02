@@ -1,0 +1,8 @@
+int main() {
+    int a = 012;
+    int a = 081;
+    int a = 0x89;
+    int a = 0xAb;
+    int a = 0xaB;
+    int a = 0xG5;
+}

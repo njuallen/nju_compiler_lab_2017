@@ -20,6 +20,8 @@ int yycolumn = 1;
 
 %option yylineno
 
+%x comment
+
 digit [0-9]
 digits {digit}+
 letter [a-zA-Z]
@@ -86,34 +88,42 @@ white_spaces ([ \t]+)
 %%
 {decimal} {
     int val;
-    if(!get_integer(&val, 10, "Illegal decimal number")) {
+    if(!get_integer(&val, 10, "Illegal decimal number"))
         yylval.int_value = val;
-        return INT;
-    }
+    else
+        yylval.int_value = 0;
+    /* even if it's a invalid integer
+     * we return a token INT
+     * so that parsing can go on
+     */
+    return INT;
 }
 
 {oct} {
     int val;
-    if(!get_integer(&val, 8, "Illegal octal number")) {
+    if(!get_integer(&val, 8, "Illegal octal number"))
         yylval.int_value = val;
-        return INT;
-    }
+    else
+        yylval.int_value = 0;
+    return INT;
 }
 
 {hex} {
     int val;
-    if(!get_integer(&val, 16, "Illegal hexadecimal number")) {
+    if(!get_integer(&val, 16, "Illegal hexadecimal number"))
         yylval.int_value = val;
-        return INT;
-    }
+    else
+        yylval.int_value = 0;
+    return INT;
 }
 
 {float_number} {
     float val;
-    if(!get_float(&val, "Illegal float number")) {
+    if(!get_float(&val, "Illegal float number"))
         yylval.float_value = val;
-        return FLOAT;
-    }
+    else
+        yylval.float_value = 0.0;
+    return FLOAT;
 }
 
 ";" { return SEMI; }
@@ -142,10 +152,25 @@ white_spaces ([ \t]+)
 "while" { return WHILE; }
 {identifier} { yylval.string_value = Strdup(yytext); return ID; }
 {white_spaces} { ; }
-\n { yycolumn = 1; }
+
+"/*"         { BEGIN(comment); } /* deal with multi-line comments, 
+                                    see these two links: 
+                                    http://dinosaur.compilertools.net/flex/flex_11.html
+                                    http://web.eecs.utk.edu/~bvz/teaching/cs461Sp11/notes/flex */ 
+<comment>[^*\n]*  {}      /* eat anything that's not a '*' */
+<comment>"*"+[^*/\n]*  {} /* eat up '*'s not followed by '/'s */
+<*>\n     { yycolumn = 1; }; /* reset yycolumn in any state */
+<comment>"*"+"/"       { BEGIN(INITIAL); } /* resume to initial state */
+
+"//".* { } /* deal with one line comment
+              activate this rule only in INITIAL state
+              so that one line comment in multi-line comments
+              will not be caught by this rule */
+
 . {
     lexical_error("Mysterious characters");
 }
+
 %%
 
 int get_integer(int *val, int base, char *msg) {
@@ -185,6 +210,14 @@ int get_float(float *val, char *msg) {
 }
 
 void lexical_error(char *msg) {
-    printf("Error type A at Line %d: %s \'%s\'\n",
+    extern int is_successful;
+    /* when we encounter an lexical error
+     * we usually returns nothing in the action part
+     * so the parser usually go on as nothing happens
+     * we use error to let main function know that
+     * there is an error even if the syntax tree is successfully built
+     */
+    is_successful = 0;
+    printf("Error type A at Line %d: %s \'%s\'.\n",
             yylineno, msg, yytext);
 }

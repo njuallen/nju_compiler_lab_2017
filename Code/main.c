@@ -4,6 +4,8 @@
 
 extern struct syntax_node *root;
 
+extern int is_successful;
+
 int main(int argc, char** argv) {
     // we only deal with one input c source file
     if(argc != 2) {
@@ -17,9 +19,10 @@ int main(int argc, char** argv) {
         return 1;
     }
     yyrestart(f);
-    yyparse();
-
-    print_syntax_tree(root, 0);
-    delete_syntax_tree(root);
+    int ret = yyparse();
+    if(is_successful && !ret) {
+        print_syntax_tree(root, 0);
+        delete_syntax_tree(root);
+    }
     return 0;
 }

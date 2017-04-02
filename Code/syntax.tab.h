@@ -83,14 +83,14 @@ extern int yydebug;
 
 union YYSTYPE
 {
-#line 15 "./syntax.y" /* yacc.c:1909  */
+#line 22 "syntax.y" /* yacc.c:1909  */
 
     int int_value;
     float float_value;
     char *string_value;
     struct syntax_node *node_value;
 
-#line 94 "./syntax.tab.h" /* yacc.c:1909  */
+#line 94 "syntax.tab.h" /* yacc.c:1909  */
 };
 
 typedef union YYSTYPE YYSTYPE;
