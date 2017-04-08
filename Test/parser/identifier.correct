@@ -1,8 +1,6 @@
-[
-  [5, B],
-  [6, B],
-  [7, B],
-  [8, B],
-  [9, B],
-  [12, B]
-]
+Error type B at Line 5: .
+Error type B at Line 6: .
+Error type B at Line 7: .
+Error type B at Line 8: .
+Error type B at Line 9: .
+Error type B at Line 12: .

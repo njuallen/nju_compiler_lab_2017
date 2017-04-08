@@ -7,12 +7,12 @@ parser: syntax.tab.c main.c csapp.c csapp.h syntax.h
 lex.yy.c: lex.l
 	flex lex.l
 syntax.tab.c: syntax.y lex.yy.c
-	bison -d -v syntax.y
+	bison -t -d -v syntax.y
 
 .PHONY: clean test
 test: parser
-	@python test_parser.py
+	@python2.7 test_parser.py
 test-%:
-	@python test_parser.py $@
+	@python2.7 test_parser.py $@
 clean:
 	rm lex.yy.c syntax.tab.c syntax.tab.h parser

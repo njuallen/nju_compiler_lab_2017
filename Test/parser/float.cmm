@@ -1,4 +1,9 @@
 int main()
 {
     float i = 1.05e;
+    float i = 1E-2;
+    float i = 01.2E+34;
+    float i = 43.e-3;
+    float i = .5e02;
+    float i = 9.8E7.6;
 }
