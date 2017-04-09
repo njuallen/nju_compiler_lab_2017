@@ -15,4 +15,7 @@ test: parser
 test-%:
 	@python2.7 test_parser.py $@
 clean:
-	rm lex.yy.c syntax.tab.c syntax.tab.h parser
+	@rm -rf lex.yy.c syntax.tab.c syntax.tab.h parser 2>/dev/null >/dev/null
+submit:
+	cd ../../
+	tar czf 141242022_lab1.tar.gz nju_compiler_lab_2017
