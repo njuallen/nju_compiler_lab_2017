@@ -20,14 +20,14 @@ union token_value {
 };
 
 struct syntax_node {
+    int line_no;
     int node_type;
     /* produce an empty string */
     int is_empty;
     union token_value value;
     struct syntax_node *prev, *next, *child;
 };
-char *get_syntax_node_name(int node_type);
-void print_syntax_node(struct syntax_node * node);
+
 void delete_syntax_tree(struct syntax_node *root);
 void print_syntax_tree(struct syntax_node *root, int indent_level);
 #endif

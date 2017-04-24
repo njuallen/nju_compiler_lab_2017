@@ -4,13 +4,16 @@
 #include <limits.h>
 #include <math.h>
 #include "syntax.tab.h"
+#include "syntax.h"
 #include "csapp.h"
 
 int get_integer(int *val, int base, char *msg);
 int get_float(float *val, char *msg);
 void lexical_error(char *msg);
+struct syntax_node *create_terminal_node(int node_type);
 
 int yycolumn = 1;
+
 #define YY_USER_ACTION \
     yylloc.first_line = yylloc.last_line = yylineno; \
     yylloc.first_column = yycolumn; \
@@ -87,70 +90,85 @@ identifier {letter_}({letter_}|{digit})*
 white_spaces ([ \t]+)
 %%
 {decimal} {
-    int val;
-    if(!get_integer(&val, 10, "Illegal decimal number"))
-        yylval.int_value = val;
-    else
-        yylval.int_value = 0;
+    int val = 0;
+    get_integer(&val, 10, "Illegal decimal number");
     /* even if it's a invalid integer
      * we return a token INT
      * so that parsing can go on
      */
+    struct syntax_node *ret = create_terminal_node(INT);
+    ret->value.int_value = val;
+    yylval.node_value = ret;
     return INT;
 }
 
 {oct} {
-    int val;
-    if(!get_integer(&val, 8, "Illegal octal number"))
-        yylval.int_value = val;
-    else
-        yylval.int_value = 0;
+    int val = 0;
+    get_integer(&val, 8, "Illegal octal number");
+    struct syntax_node *ret = create_terminal_node(INT);
+    ret->value.int_value = val;
+    yylval.node_value = ret;
     return INT;
 }
 
 {hex} {
-    int val;
-    if(!get_integer(&val, 16, "Illegal hexadecimal number"))
-        yylval.int_value = val;
-    else
-        yylval.int_value = 0;
+    int val = 0;
+    get_integer(&val, 16, "Illegal hexadecimal number");
+    struct syntax_node *ret = create_terminal_node(INT);
+    ret->value.int_value = val;
+    yylval.node_value = ret;
     return INT;
 }
 
 {float_number} {
-    float val;
-    if(!get_float(&val, "Illegal float number"))
-        yylval.float_value = val;
-    else
-        yylval.float_value = 0.0;
+    float val = 0.0;
+    get_float(&val, "Illegal float number");
+    struct syntax_node *ret = create_terminal_node(FLOAT);
+    ret->value.float_value = val;
+    yylval.node_value = ret;
     return FLOAT;
 }
 
-";" { return SEMI; }
-"," { return COMMA; }
-"=" { return ASSIGNOP; }
-("<"|">"|">="|"<="|"!="|"==") {  yylval.string_value = Strdup(yytext); return RELOP; }
-"+" { return PLUS; }
-"-" { return MINUS; }
-"*" { return STAR; }
-"/" { return DIV; }
-"&&" { return AND; }
-"||" { return OR; }
-"." { return DOT; }
-"!" { return NOT; }
-"(" { return LP; }
-")" { return RP; }
-"[" { return LB; }
-"]" { return RB; }
-"{" { return LC; }
-"}" { return RC; }
-"int"|"float" { yylval.string_value = Strdup(yytext); return TYPE; }
-"struct" { return STRUCT; }
-"return" { return RETURN; }
-"if" { return IF; }
-"else" { return ELSE; }
-"while" { return WHILE; }
-{identifier} { yylval.string_value = Strdup(yytext); return ID; }
+";" { yylval.node_value = create_terminal_node(SEMI); return SEMI; }
+"," { yylval.node_value = create_terminal_node(COMMA); return COMMA; }
+"=" { yylval.node_value = create_terminal_node(ASSIGNOP); return ASSIGNOP; }
+("<"|">"|">="|"<="|"!="|"==") { 
+    struct syntax_node *ret = create_terminal_node(RELOP);
+    ret->value.string_value = Strdup(yytext);
+    yylval.node_value = ret;
+    return RELOP;
+}
+"+" { yylval.node_value = create_terminal_node(PLUS); return PLUS; }
+"-" { yylval.node_value = create_terminal_node(MINUS); return MINUS; }
+"*" { yylval.node_value = create_terminal_node(STAR); return STAR; }
+"/" { yylval.node_value = create_terminal_node(DIV); return DIV; }
+"&&" { yylval.node_value = create_terminal_node(AND); return AND; }
+"||" { yylval.node_value = create_terminal_node(OR); return OR; }
+"." { yylval.node_value = create_terminal_node(DOT); return DOT; }
+"!" { yylval.node_value = create_terminal_node(NOT); return NOT; }
+"(" { yylval.node_value = create_terminal_node(LP); return LP; }
+")" { yylval.node_value = create_terminal_node(RP); return RP; }
+"[" { yylval.node_value = create_terminal_node(LB); return LB; }
+"]" { yylval.node_value = create_terminal_node(RB); return RB; }
+"{" { yylval.node_value = create_terminal_node(LC); return LC; }
+"}" { yylval.node_value = create_terminal_node(RC); return RC; }
+"int"|"float" {
+    struct syntax_node *ret = create_terminal_node(TYPE);
+    ret->value.string_value = Strdup(yytext);
+    yylval.node_value = ret;
+    return TYPE;
+}
+"struct" { yylval.node_value = create_terminal_node(STRUCT); return STRUCT; }
+"return" { yylval.node_value = create_terminal_node(RETURN); return RETURN; }
+"if" { yylval.node_value = create_terminal_node(IF); return IF; }
+"else" { yylval.node_value = create_terminal_node(ELSE); return ELSE; }
+"while" { yylval.node_value = create_terminal_node(WHILE); return WHILE; }
+{identifier} {
+    struct syntax_node *ret = create_terminal_node(ID);
+    ret->value.string_value = Strdup(yytext);
+    yylval.node_value = ret;
+    return ID;
+}
 {white_spaces} { ; }
 
 "/*"         { BEGIN(comment); } /* deal with multi-line comments, 
@@ -220,4 +238,13 @@ void lexical_error(char *msg) {
     is_successful = 0;
     printf("Error type A at Line %d: %s \'%s\'.\n",
             yylineno, msg, yytext);
+}
+
+struct syntax_node *create_terminal_node(int node_type) {
+    struct syntax_node *ret = Calloc(1, sizeof(struct syntax_node));
+    ret->line_no = yylineno;
+    ret->node_type = node_type;
+    ret->is_empty = 0;
+    ret->prev = ret->next = ret->child = NULL;
+    return ret;
 }

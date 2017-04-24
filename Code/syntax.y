@@ -5,8 +5,7 @@
 #include "syntax.tab.h"
 #include "syntax.h"
 struct syntax_node *root;
-struct syntax_node *create_node(int node_type, int is_empty);
-struct syntax_node *connect_node(int argc, ...);
+struct syntax_node *create_nonterminal_node(int node_type, int argc, ...);
 /* use this to let main function know:
  * whether there is no error
  * or we have done some error recovery and 
@@ -26,13 +25,13 @@ int is_successful = 1;
     struct syntax_node *node_value;
 }
 
-%token <int_value> INT <float_value> FLOAT <string_value> ID <string_value> TYPE
-%token STRUCT RETURN IF ELSE WHILE
-%token PLUS MINUS STAR DIV
-%token AND OR NOT
-%token DOT SEMI COMMA ASSIGNOP <string_value> RELOP 
-%token LP RP LB RB LC RC
-%token NONTREMINAL
+%token <node_value> INT FLOAT ID TYPE
+%token <node_value> STRUCT RETURN IF ELSE WHILE
+%token <node_value> PLUS MINUS STAR DIV
+%token <node_value> AND OR NOT
+%token <node_value> DOT SEMI COMMA ASSIGNOP RELOP 
+%token <node_value> LP RP LB RB LC RC
+%token <node_value> NONTREMINAL
 
 /* type of nonterminals */
 %type <node_value> Program ExtDefList ExtDef Specifier ExtDecList
@@ -56,206 +55,148 @@ int is_successful = 1;
 /* High-level Definitions */
 
 Program : ExtDefList {
-    $$ = create_node(Program, 0);
-    $$->child = connect_node(1, $1);
+    $$ = create_nonterminal_node(Program, 1, $1);
     root = $$;
 }
 ;
 
 ExtDefList : {
-    $$ = create_node(ExtDefList, 1);
+    $$ = create_nonterminal_node(ExtDefList, 0);
 }
 |ExtDef ExtDefList {
-    $$ = create_node(ExtDefList, 0);
-    $$->child = connect_node(2, $1, $2);
+    $$ = create_nonterminal_node(ExtDefList, 2, $1, $2);
 }
 ;
 
 ExtDef : Specifier ExtDecList SEMI {
-    struct syntax_node *semi = create_node(SEMI, 0);
-    $$ = create_node(ExtDef, 0);
-    $$->child = connect_node(3, $1, $2, semi);
+    $$ = create_nonterminal_node(ExtDef, 3, $1, $2, $3);
 }
 | Specifier SEMI {
-    struct syntax_node *semi = create_node(SEMI, 0);
-    $$ = create_node(ExtDef, 0);
-    $$->child = connect_node(2, $1, semi);
+    $$ = create_nonterminal_node(ExtDef, 2, $1, $2);
 }
 | error SEMI {
     yyerrok;
     is_successful = 0;
-    $$ = create_node(ExtDef, 1);
+    $$ = create_nonterminal_node(ExtDef, 0);
 }
 | Specifier FunDec CompSt {
-    $$ = create_node(ExtDef, 0);
-    $$->child = connect_node(3, $1, $2, $3);
+    $$ = create_nonterminal_node(ExtDef, 3, $1, $2, $3);
 }
 ;
 
 ExtDecList : VarDec {
-    $$ = create_node(ExtDecList, 0);
-    $$->child = connect_node(1, $1);
+    $$ = create_nonterminal_node(ExtDecList, 1, $1);
 }
 | VarDec COMMA ExtDecList {
-    struct syntax_node *comma = create_node(COMMA, 0);
-    $$ = create_node(ExtDecList, 0);
-    $$->child = connect_node(3, $1, comma, $3);
+    $$ = create_nonterminal_node(ExtDecList, 3, $1, $2, $3);
 }
 ;
 
 /* Specifiers */
 
 Specifier : TYPE {
-    struct syntax_node *type = create_node(TYPE, 0);
-    type->value.string_value = $1;
-    $$ = create_node(Specifier, 0);
-    $$->child = connect_node(1, type);
+    $$ = create_nonterminal_node(Specifier, 1, $1);
 }
 | StructSpecifier {
-    $$ = create_node(Specifier, 0);
-    $$->child = connect_node(1, $1);
+    $$ = create_nonterminal_node(Specifier, 1, $1);
 }
 ;
 
 StructSpecifier : STRUCT OptTag LC DefList RC {
-    struct syntax_node *structure = create_node(STRUCT, 0);
-    struct syntax_node *lc = create_node(LC, 0);
-    struct syntax_node *rc = create_node(RC, 0);
-    $$ = create_node(StructSpecifier, 0);
-    $$->child = connect_node(5, structure, $2, lc, $4, rc);
+    $$ = create_nonterminal_node(StructSpecifier, 5, $1, $2, $3, $4, $5);
 }
 | STRUCT OptTag LC error RC {
     yyerrok;
     is_successful = 0;
-    $$ = create_node(StructSpecifier, 1);
+    $$ = create_nonterminal_node(StructSpecifier, 0);
 }
 | STRUCT Tag {
-    struct syntax_node *structure = create_node(STRUCT, 0);
-    $$ = create_node(StructSpecifier, 0);
-    $$->child = connect_node(2, structure, $2);
+    $$ = create_nonterminal_node(StructSpecifier, 2, $1, $2);
 }
 ;
 
 OptTag : {
-    $$ = create_node(OptTag, 1);
+    $$ = create_nonterminal_node(OptTag, 0);
 }
 | ID {
-    struct syntax_node *id = create_node(ID, 0);
-    id->value.string_value = $1;
-    $$ = create_node(OptTag, 0);
-    $$->child = connect_node(1, id);
+    $$ = create_nonterminal_node(OptTag, 1, $1);
 }
 ;
 
 Tag : ID {
-    struct syntax_node *id = create_node(ID, 0);
-    id->value.string_value = $1;
-    $$ = create_node(Tag, 0);
-    $$->child = connect_node(1, id);
+    $$ = create_nonterminal_node(Tag, 1, $1);
 }
 ;
 
 /* Declarators */
 
 VarDec : ID {
-    struct syntax_node *id = create_node(ID, 0);
-    id->value.string_value = $1;
-    $$ = create_node(VarDec, 0);
-    $$->child = connect_node(1, id);
+    $$ = create_nonterminal_node(VarDec, 1, $1);
 }
 | VarDec LB INT RB {
-    struct syntax_node *lb = create_node(LB, 0);
-    struct syntax_node *integer = create_node(INT, 0);
-    integer->value.int_value = $3;
-    struct syntax_node *rb = create_node(RB, 0);
-    $$ = create_node(VarDec, 0);
-    $$->child = connect_node(4, $1, lb, integer, rb);
+    $$ = create_nonterminal_node(VarDec, 4, $1, $2, $3, $4);
 }
 | VarDec LB error RB {
     yyerrok;
     is_successful = 0;
-    $$ = create_node(VarDec, 1);
+    $$ = create_nonterminal_node(VarDec, 0);
 }
 ;
 
 FunDec : ID LP VarList RP {
-    struct syntax_node *id = create_node(ID, 0);
-    id->value.string_value = $1;
-    struct syntax_node *lp = create_node(LP, 0);
-    struct syntax_node *rp = create_node(RP, 0);
-    $$ = create_node(FunDec, 0);
-    $$->child = connect_node(4, id, lp, $3, rp);
+    $$ = create_nonterminal_node(FunDec, 4, $1, $2, $3, $4);
 }
 | ID LP error RP {
     yyerrok;
     is_successful = 0;
-    $$ = create_node(FunDec, 1);
+    $$ = create_nonterminal_node(FunDec, 0);
 }
 | ID LP RP {
-    struct syntax_node *id = create_node(ID, 0);
-    id->value.string_value = $1;
-    struct syntax_node *lp = create_node(LP, 0);
-    struct syntax_node *rp = create_node(RP, 0);
-    $$ = create_node(FunDec, 0);
-    $$->child = connect_node(3, id, lp, rp);
+    $$ = create_nonterminal_node(FunDec, 3, $1, $2, $3);
 }
 ;
 
 VarList : ParamDec COMMA VarList {
-    struct syntax_node *comma = create_node(COMMA, 0);
-    $$ = create_node(VarList, 0);
-    $$->child = connect_node(3, $1, comma, $3);
+    $$ = create_nonterminal_node(VarList, 3, $1, $2, $3);
 }
 | ParamDec {
-    $$ = create_node(VarList, 0);
-    $$->child = connect_node(1, $1);
+    $$ = create_nonterminal_node(VarList, 1, $1);
 }
 ;
 
 ParamDec : Specifier VarDec {
-    $$ = create_node(ParamDec, 0);
-    $$->child = connect_node(2, $1, $2);
+    $$ = create_nonterminal_node(ParamDec, 2, $1, $2);
 }
 ;
 
 /* Statements */
 
 CompSt : LC DefList StmtList RC {
-    struct syntax_node *lc = create_node(LC, 0);
-    struct syntax_node *rc = create_node(RC, 0);
-    $$ = create_node(CompSt, 0);
-    $$->child = connect_node(4, lc, $2, $3, rc);
+    $$ = create_nonterminal_node(CompSt, 4, $1, $2, $3, $4);
 }
 | LC error RC {
     yyerrok;
     is_successful = 0;
-    $$ = create_node(CompSt, 1);
+    $$ = create_nonterminal_node(CompSt, 0);
 }
 ;
 
 StmtList : {
-    $$ = create_node(StmtList, 1);
+    $$ = create_nonterminal_node(StmtList, 0);
 }
 | Stmt StmtList {
-    $$ = create_node(StmtList, 0);
-    $$->child = connect_node(2, $1, $2);
+    $$ = create_nonterminal_node(StmtList, 2, $1, $2);
 }
 ;
 
 Stmt : Exp SEMI {
-    struct syntax_node *semi = create_node(SEMI, 0);
-    $$ = create_node(Stmt, 0);
-    $$->child = connect_node(2, $1, semi);
+    $$ = create_nonterminal_node(Stmt, 2, $1, $2);
 }
 | CompSt {
-    $$ = create_node(Stmt, 0);
-    $$->child = connect_node(1, $1);
+    $$ = create_nonterminal_node(Stmt, 1, $1);
 }
 | RETURN Exp SEMI {
-    struct syntax_node *return_token = create_node(RETURN, 0);
-    struct syntax_node *semi = create_node(SEMI, 0);
-    $$ = create_node(Stmt, 0);
-    $$->child = connect_node(3, return_token, $2, semi);
+    $$ = create_nonterminal_node(Stmt, 3, $1, $2, $3);
 }
 | error SEMI {
     /* according to this bison manual page
@@ -274,225 +215,150 @@ Stmt : Exp SEMI {
     yyerrok;
     is_successful = 0;
     /* remember to create an empty production rule node for it
-     * or its parent will encounter an segment fault when call connect_node
+     * or its parent will encounter an segment fault when call create_nonterminal_node
      */
-    $$ = create_node(Stmt, 1);
+    $$ = create_nonterminal_node(Stmt, 0);
 }
 | IF LP Exp RP Stmt %prec LOWER_THAN_ELSE {
-    struct syntax_node *if_token = create_node(IF, 0);
-    struct syntax_node *lp = create_node(LP, 0);
-    struct syntax_node *rp = create_node(RP, 0);
-    $$ = create_node(Stmt, 0);
-    $$->child = connect_node(5, if_token, lp, $3, rp, $5);
+    $$ = create_nonterminal_node(Stmt, 5, $1, $2, $3, $4, $5);
 }
 | IF LP error RP Stmt %prec LOWER_THAN_ELSE {
     yyerrok;
     is_successful = 0;
-    $$ = create_node(Stmt, 1);
+    $$ = create_nonterminal_node(Stmt, 0);
 }
 | IF LP Exp RP Stmt ELSE Stmt {
-    struct syntax_node *if_token = create_node(IF, 0);
-    struct syntax_node *lp = create_node(LP, 0);
-    struct syntax_node *rp = create_node(RP, 0);
-    struct syntax_node *else_token = create_node(ELSE, 0);
-    $$ = create_node(Stmt, 0);
-    $$->child = connect_node(7, if_token, lp, $3, rp, $5, else_token, $7);
+    $$ = create_nonterminal_node(Stmt, 7, $1, $2, $3, $4, $5, $6, $7);
 }
 | IF LP error RP Stmt ELSE Stmt {
     yyerrok;
     is_successful = 0;
-    $$ = create_node(Stmt, 1);
+    $$ = create_nonterminal_node(Stmt, 0);
 }
 | WHILE LP Exp RP Stmt {
-    struct syntax_node *while_token = create_node(WHILE, 0);
-    struct syntax_node *lp = create_node(LP, 0);
-    struct syntax_node *rp = create_node(RP, 0);
-    $$ = create_node(Stmt, 0);
-    $$->child = connect_node(5, while_token, lp, $3, rp, $5);
+    $$ = create_nonterminal_node(Stmt, 5, $1, $2, $3, $4, $5);
 }
 | WHILE LP error RP Stmt {
     yyerrok;
     is_successful = 0;
-    $$ = create_node(Stmt, 1);
+    $$ = create_nonterminal_node(Stmt, 0);
 }
 ;
 
 /* Local Definitions */
 
 DefList : {
-    $$ = create_node(DefList, 1);
+    $$ = create_nonterminal_node(DefList, 0);
 }
 | Def DefList {
-    $$ = create_node(DefList, 0);
-    $$->child = connect_node(2, $1, $2);
+    $$ = create_nonterminal_node(DefList, 2, $1, $2);
 }
 ;
 
 Def : Specifier DecList SEMI {
-    struct syntax_node *semi = create_node(SEMI, 0);
-    $$ = create_node(Def, 0);
-    $$->child = connect_node(3, $1, $2, semi);
+    $$ = create_nonterminal_node(Def, 3, $1, $2, $3);
 }
 | error SEMI {
     yyerrok;
     is_successful = 0;
-    $$ = create_node(Def, 1);
+    $$ = create_nonterminal_node(Def, 0);
 }
 ;
 
 DecList : Dec {
-    $$ = create_node(DecList, 0);
-    $$->child = connect_node(1, $1);
+    $$ = create_nonterminal_node(DecList, 1, $1);
 }
 | Dec COMMA DecList {
-    struct syntax_node *comma = create_node(COMMA, 0);
-    $$ = create_node(DecList, 0);
-    $$->child = connect_node(3, $1, comma, $3);
+    $$ = create_nonterminal_node(DecList, 3, $1, $2, $3);
 }
 ;
 
 Dec : VarDec {
-    $$ = create_node(Dec, 0);
-    $$->child = connect_node(1, $1);
+    $$ = create_nonterminal_node(Dec, 1, $1);
 }
 | VarDec ASSIGNOP Exp {
-    struct syntax_node *assignop = create_node(ASSIGNOP, 0);
-    $$ = create_node(Dec, 0);
-    $$->child = connect_node(3, $1, assignop, $3);
+    $$ = create_nonterminal_node(Dec, 3, $1, $2, $3);
 }
 ;
 
 /* Expressions */
 
 Exp : Exp ASSIGNOP Exp {
-    struct syntax_node *assignop = create_node(ASSIGNOP, 0);
-    $$ = create_node(Exp, 0);
-    $$->child = connect_node(3, $1, assignop, $3);
+    $$ = create_nonterminal_node(Exp, 3, $1, $2, $3);
 }
 | Exp AND Exp {
-    struct syntax_node *and = create_node(AND, 0);
-    $$ = create_node(Exp, 0);
-    $$->child = connect_node(3, $1, and, $3);
+    $$ = create_nonterminal_node(Exp, 3, $1, $2, $3);
 }
 | Exp OR Exp {
-    struct syntax_node *or = create_node(OR, 0);
-    $$ = create_node(Exp, 0);
-    $$->child = connect_node(3, $1, or, $3);
+    $$ = create_nonterminal_node(Exp, 3, $1, $2, $3);
 }
 | Exp RELOP Exp {
-    struct syntax_node *relop = create_node(RELOP, 0);
-    relop->value.string_value = $2;
-    $$ = create_node(Exp, 0);
-    $$->child = connect_node(3, $1, relop, $3);
+    $$ = create_nonterminal_node(Exp, 3, $1, $2, $3);
 }
 | Exp PLUS Exp {
-    struct syntax_node *plus = create_node(PLUS, 0);
-    $$ = create_node(Exp, 0);
-    $$->child = connect_node(3, $1, plus, $3);
+    $$ = create_nonterminal_node(Exp, 3, $1, $2, $3);
 }
 | Exp MINUS Exp {
-    struct syntax_node *minus = create_node(MINUS, 0);
-    $$ = create_node(Exp, 0);
-    $$->child = connect_node(3, $1, minus, $3);
+    $$ = create_nonterminal_node(Exp, 3, $1, $2, $3);
 }
 | Exp STAR Exp {
-    struct syntax_node *star = create_node(STAR, 0);
-    $$ = create_node(Exp, 0);
-    $$->child = connect_node(3, $1, star, $3);
+    $$ = create_nonterminal_node(Exp, 3, $1, $2, $3);
 }
 | Exp DIV Exp {
-    struct syntax_node *div = create_node(DIV, 0);
-    $$ = create_node(Exp, 0);
-    $$->child = connect_node(3, $1, div, $3);
+    $$ = create_nonterminal_node(Exp, 3, $1, $2, $3);
 }
 | LP Exp RP {
-    struct syntax_node *lp = create_node(LP, 0);
-    struct syntax_node *rp = create_node(RP, 0);
-    $$ = create_node(Exp, 0);
-    $$->child = connect_node(3, lp, $2, rp);
+    $$ = create_nonterminal_node(Exp, 3, $1, $2, $3);
 }
 | LP error RP {
     yyerrok;
     is_successful = 0;
-    $$ = create_node(Exp, 1);
+    $$ = create_nonterminal_node(Exp, 0);
 }
 | MINUS Exp %prec UNARY_MINUS {
-    struct syntax_node *minus = create_node(MINUS, 0);
-    $$ = create_node(Exp, 0);
-    $$->child = connect_node(2, minus, $2);
+    $$ = create_nonterminal_node(Exp, 2, $1, $2);
 }
 | NOT Exp {
-    struct syntax_node *not = create_node(NOT, 0);
-    $$ = create_node(Exp, 0);
-    $$->child = connect_node(2, not, $2);
+    $$ = create_nonterminal_node(Exp, 2, $1, $2);
 }
 | ID LP Args RP {
-    struct syntax_node *id = create_node(ID, 0);
-    id->value.string_value = $1;
-    struct syntax_node *lp = create_node(LP, 0);
-    struct syntax_node *rp = create_node(RP, 0);
-    $$ = create_node(Exp, 0);
-    $$->child = connect_node(4, id, lp, $3, rp);
+    $$ = create_nonterminal_node(Exp, 4, $1, $2, $3, $4);
 }
 | ID LP error RP {
     yyerrok;
     is_successful = 0;
-    $$ = create_node(Exp, 1);
+    $$ = create_nonterminal_node(Exp, 0);
 }
 | ID LP RP {
-    struct syntax_node *id = create_node(ID, 0);
-    id->value.string_value = $1;
-    struct syntax_node *lp = create_node(LP, 0);
-    struct syntax_node *rp = create_node(RP, 0);
-    $$ = create_node(Exp, 0);
-    $$->child = connect_node(3, id, lp, rp);
+    $$ = create_nonterminal_node(Exp, 3, $1, $2, $3);
 }
 | Exp LB Exp RB {
-    struct syntax_node *lb = create_node(LB, 0);
-    struct syntax_node *rb = create_node(RB, 0);
-    $$ = create_node(Exp, 0);
-    $$->child = connect_node(4, $1, lb, $3, rb);
+    $$ = create_nonterminal_node(Exp, 4, $1, $2, $3, $4);
 }
 | Exp LB error RB {
     yyerrok;
     is_successful = 0;
-    $$ = create_node(Exp, 1);
+    $$ = create_nonterminal_node(Exp, 0);
 }
 | Exp DOT ID {
-    struct syntax_node *dot = create_node(DOT, 0);
-    struct syntax_node *id = create_node(ID, 0);
-    id->value.string_value = $3;
-    $$ = create_node(Exp, 0);
-    $$->child = connect_node(3, $1, dot, id);
+    $$ = create_nonterminal_node(Exp, 3, $1, $2, $3);
 }
 | ID {
-    struct syntax_node *id = create_node(ID, 0);
-    id->value.string_value = $1;
-    $$ = create_node(Exp, 0);
-    $$->child = connect_node(1, id);
+    $$ = create_nonterminal_node(Exp, 1, $1);
 }
 | INT {
-    struct syntax_node *integer = create_node(INT, 0);
-    integer->value.int_value = $1;
-    $$ = create_node(Exp, 0);
-    $$->child = connect_node(1, integer);
+    $$ = create_nonterminal_node(Exp, 1, $1);
 }
 | FLOAT {
-    struct syntax_node *float_number = create_node(FLOAT, 0);
-    float_number->value.float_value = $1;
-    $$ = create_node(Exp, 0);
-    $$->child = connect_node(1, float_number);
+    $$ = create_nonterminal_node(Exp, 1, $1);
 }
 ;
 
 Args : Exp COMMA Args {
-    struct syntax_node *comma = create_node(COMMA, 0);
-    $$ = create_node(Args, 0);
-    $$->child = connect_node(3, $1, comma, $3);
+    $$ = create_nonterminal_node(Args, 3, $1, $2, $3);
 }
 | Exp {
-    $$ = create_node(Args, 0);
-    $$->child = connect_node(1, $1);
+    $$ = create_nonterminal_node(Args, 1, $1);
 }
 ;
 %%
@@ -509,24 +375,16 @@ void yyerror(char *s) {
         yylloc.first_line, s);
 }
 
-struct syntax_node *create_node(int node_type, int is_empty) {
-    struct syntax_node *ret = Calloc(1, sizeof(struct syntax_node));
-    ret->node_type = node_type;
-    ret->is_empty = is_empty;
-    ret->prev = ret->next = ret->child = NULL;
-    return ret;
-}
-
-struct syntax_node *connect_node(int argc, ...) {
-    struct syntax_node *ret = NULL, *curr = NULL, *next = NULL;
+struct syntax_node *create_nonterminal_node(int node_type, int argc, ...) {
+    struct syntax_node *head = NULL, *curr = NULL, *next = NULL;
     va_list args;
 
-    va_start(args, argc);           
+    va_start(args, argc);          
     for(int i = 0; i < argc; i++ ) {
         next = va_arg(args, struct syntax_node *); 
         /* first one */
-        if(!ret) {
-            ret = curr = next;
+        if(!head) {
+            head = curr = next;
             curr->prev = NULL;
         }
         else {
@@ -537,9 +395,18 @@ struct syntax_node *connect_node(int argc, ...) {
         curr->next = NULL;
     }
     va_end(args);
+
+    struct syntax_node *ret = Calloc(1, sizeof(struct syntax_node));
+    ret->node_type = node_type;
+    ret->prev = ret->next = NULL;
+    ret->child = head;
+    ret->is_empty = 1;
+    if(argc > 0) {
+        ret->is_empty = 0;
+        ret->line_no = head->line_no;
+    }
     return ret;
 }
-
 
 /* be careful of the order here */
 char *syntax_node_name_table[] = {
@@ -559,9 +426,15 @@ char *get_syntax_node_name(int node_type) {
     return syntax_node_name_table[node_type - INT];
 }
 
+int is_terminal(int node_type) {
+    return node_type >= INT && node_type <= RC;
+}
+
 void print_syntax_node(struct syntax_node * node) {
     int node_type = node->node_type;
     printf("%s", get_syntax_node_name(node_type));
+    if(!is_terminal(node_type))
+        printf(" (%d)", node->line_no);
     if(node_type == ID || node_type == TYPE)
         printf(": %s", node->value.string_value);
     if(node_type == INT)

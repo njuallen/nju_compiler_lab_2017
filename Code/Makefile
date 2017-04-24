@@ -17,4 +17,4 @@ test-%:
 clean:
 	@rm -rf lex.yy.c syntax.tab.c syntax.tab.h parser 2>/dev/null >/dev/null
 submit:
-	cd ../../ && tar czf 141242022_lab1.tar.gz nju_compiler_lab_2017
+	cd ../../ && tar czf 141242022_lab.tar.gz nju_compiler_lab_2017 --exclude='nju_compiler_lab_2017/.git' --exclude='nju_compiler_lab_2017/Handouts' 

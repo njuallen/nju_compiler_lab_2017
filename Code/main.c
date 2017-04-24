@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include "syntax.tab.h"
 #include "syntax.h"
 
 extern struct syntax_node *root;
