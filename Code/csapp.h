@@ -1,5 +1,10 @@
 #ifndef __CSAPP_H__
 #define __CSAPP_H__
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include <errno.h>
 
 /* Our own error-handling functions */
 void unix_error(const char *msg);
