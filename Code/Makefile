@@ -1,13 +1,13 @@
 # 编译器设定和编译选项
 CC = gcc
-CFLAGS = -std=gnu99 -Wall -g
+CFLAGS = -std=gnu99 -Wall -g -O0
 COMMON = csapp.c csapp.h
 ADT = adt.c adt.h
 
 all: parser adt
 
-parser: syntax.tab.c main.c syntax.h $(COMMON)
-	$(CC) $(CFLAGS) syntax.tab.c main.c csapp.c -lfl -ly -o parser
+parser: syntax.tab.c semantic.c semantic.h main.c syntax.h $(COMMON) $(adt)
+	$(CC) $(CFLAGS) syntax.tab.c semantic.c main.c adt.c csapp.c -lfl -ly -o parser
 lex.yy.c: lex.l
 	flex lex.l
 syntax.tab.c: syntax.y lex.yy.c

@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "syntax.h"
+#include "semantic.h"
 
 extern struct syntax_node *root;
 
@@ -17,11 +18,11 @@ int main(int argc, char** argv) {
         perror(argv[1]);
         return 1;
     }
-    // yydebug = 1;
     yyrestart(f);
     int ret = yyparse();
     if(is_successful && !ret) {
-        print_syntax_tree(root, 0);
+        check_semantics(root);
+        // print_syntax_tree(root, 0);
         delete_syntax_tree(root);
     }
     return 0;

@@ -1,0 +1,23 @@
+// test structure definition and usage
+struct A a;
+struct A {
+    int a;
+    int b = 0;
+};
+
+struct B {
+    int a;
+    int b;
+};
+struct B b;
+
+struct C {
+    int a;
+    int b;
+    struct B c;
+    struct {
+        int a;
+        int b;
+    }d[10];
+};
+int d[10];

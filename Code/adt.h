@@ -8,8 +8,15 @@ struct hash_node {
      * collided hash nodes are chained into a doubly linked list
      */
     struct hash_node *prev, *next;
+    // point to the next hash node in the same scope
+    struct hash_node *brother;
 };
 
+/* asking the user to provide hash and compare functions
+ * makes it tedious to use
+ * but I do not want users to touch the internals of hash table
+ * I am trying to build an adt.
+ */
 struct hash_table {
     // size of the hash table(number of slots)
     int size;
@@ -48,5 +55,6 @@ int cstack_is_empty(struct cstack *s);
 int cstack_is_full(struct cstack *s);
 void cstack_push(struct cstack *s, void *elem);
 void *cstack_pop(struct cstack *s);
+void *cstack_top(struct cstack *s);
 void cstack_clear(struct cstack *s);
 #endif

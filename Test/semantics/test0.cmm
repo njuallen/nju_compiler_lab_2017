@@ -1,0 +1,5 @@
+// test integer and array definition
+int a;
+int b;
+int a;
+int c[10];

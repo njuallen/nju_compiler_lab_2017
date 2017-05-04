@@ -24,7 +24,9 @@ struct hash_node *hash_table_insert(struct hash_table *t, void *elem) {
     // insert the node at the beginning of the list
     struct hash_node *curr = (struct hash_node *)Calloc(1, sizeof(struct hash_node));
     curr->elem = elem;
+    curr->prev = NULL;
     curr->next = t->nodes[slot];
+    curr->brother = NULL;
     t->nodes[slot] = curr;
     if(curr->next)
         curr->next->prev = curr;
@@ -96,6 +98,14 @@ void *cstack_pop(struct cstack *s) {
         return NULL;
     }
     return s->buffer[s->top--];
+}
+
+void *cstack_top(struct cstack *s) {
+    if(s->top == -1) {
+        app_error("cstack underflowed");
+        return NULL;
+    }
+    return s->buffer[s->top];
 }
 
 void cstack_clear(struct cstack *s) {
