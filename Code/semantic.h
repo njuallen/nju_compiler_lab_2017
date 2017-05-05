@@ -36,7 +36,7 @@ struct function_symbol_table_entry {
     // number of arguments
     int argc;
     // type of args, it's an array
-    struct semantic_type *args;
+    struct semantic_type **args;
     struct semantic_type *return_type;
     int line_no;
 };

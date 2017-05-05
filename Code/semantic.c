@@ -38,8 +38,8 @@ make_compare_function(compare_variable, variable_symbol_table_entry);
 make_compare_function(compare_function, function_symbol_table_entry);
 make_compare_function(compare_structure, structure_symbol_table_entry);
 
-struct hash_table *variable_symbol_table, *function_symbol_table,
-                  *structure_symbol_table;
+struct hash_table *variable_symbol_table, *function_definition_symbol_table,
+                  *function_declaration_symbol_table, *structure_symbol_table;
 
 /* variable_scopes stores pointer to linked lists
  * each linked lists chain together variable definitions in the same scope
@@ -69,6 +69,18 @@ struct syntax_node *find_child(struct syntax_node *root, int id) {
     return ret;
 }
 
+// return the number of child of a node
+int num_child(struct syntax_node *root) {
+    struct syntax_node *child = root->child;
+    int count = 0;
+    while(child) {
+        count++;
+        child = child->next;
+    }
+    return count;
+}
+
+
 #define child_number(id) \
 struct syntax_node *child_##id(struct syntax_node *root) { \
     return find_child(root, id); \
@@ -92,11 +104,21 @@ void handle_VarDec(struct syntax_node *root, struct semantic_type *type);
 struct semantic_type *handle_Specifier(struct syntax_node *root);
 char *handle_OptTag(struct syntax_node *root);
 char *handle_Tag(struct syntax_node *root);
+struct semantic_type *handle_StructSpecifier(struct syntax_node *root);
 void handle_DefList(struct syntax_node *root);
 void handle_Def(struct syntax_node *root);
 void handle_DecList(struct syntax_node *root, struct semantic_type *type);
 void handle_Dec(struct syntax_node *root, struct semantic_type *type);
-struct semantic_type *handle_StructSpecifier(struct syntax_node *root);
+struct function_symbol_table_entry * handle_FunDec(
+        struct syntax_node *root, struct semantic_type *type);
+int handle_VarList(struct syntax_node *root);
+void handle_ParamDec(struct syntax_node *root);
+void handle_CompSt(struct syntax_node *root);
+int compare_semantic_type(struct semantic_type *t1, 
+        struct semantic_type *t2);
+int compare_function_type(struct function_symbol_table_entry *f1, 
+        struct function_symbol_table_entry *f2);
+void check_undefined_functions();
 void semantic_error(int error_type, int line_no, ...);
 
 enum error_type {
@@ -116,13 +138,17 @@ enum error_type {
     NON_EXISTEND_FIELD,
     STRUCTURE_FIELD_ERROR,
     DUPLICATE_STRUCTURE,
-    UNDEFINED_STRUCTURE
+    UNDEFINED_STRUCTURE,
+    FUNCTION_DECLARED_NOT_DEFINED,
+    FUNCTION_DEFINITION_DECLARATION_CONFLICT
 };
 
 int check_semantics(struct syntax_node *root) {
     variable_symbol_table = 
         create_hash_table(HASH_TABLE_SIZE, hash_variable, compare_variable);
-    function_symbol_table = 
+    function_declaration_symbol_table = 
+        create_hash_table(HASH_TABLE_SIZE, hash_function, compare_function);
+    function_definition_symbol_table = 
         create_hash_table(HASH_TABLE_SIZE, hash_function, compare_function);
     structure_symbol_table = 
         create_hash_table(HASH_TABLE_SIZE, hash_structure, compare_structure);
@@ -181,7 +207,24 @@ void handle_Program(struct syntax_node *root) {
     create_scope(VARIABLE_SCOPE);
     // Program : ExtDefList
     handle_ExtDefList(child_1(root));
+    check_undefined_functions();
     delete_scope();
+}
+
+// looking for functions that are declared but not defined
+void check_undefined_functions() {
+    struct hash_node *node = NULL;
+    for(int i = 0; i < HASH_TABLE_SIZE; i++) {
+        node = function_declaration_symbol_table->nodes[i];
+        while(node) {
+            struct function_symbol_table_entry *entry = node->elem;
+            struct function_symbol_table_entry *old = 
+                hash_table_search(function_definition_symbol_table, entry);
+            if(!old)
+                semantic_error(FUNCTION_DECLARED_NOT_DEFINED, entry->line_no, entry->name);
+            node = node->next;
+        }
+    }
 }
 
 void handle_ExtDefList(struct syntax_node *root) {
@@ -195,10 +238,126 @@ void handle_ExtDefList(struct syntax_node *root) {
 void handle_ExtDef(struct syntax_node *root) {
     struct syntax_node *specifier = child_1(root);
     struct semantic_type *type = handle_Specifier(specifier);
-    // ExtDef : Specifier ExtDecList SEMI
     if(child_2(root)->node_type == ExtDecList) {
+        // ExtDef : Specifier ExtDecList SEMI
         handle_ExtDecList(child_2(root), type);
+    }else if(child_2(root)->node_type == FunDec) {
+
+        /* there should not be more than one entry 
+         * with the same name in the same hash table.
+         * so in case of function redefinition and declaration conflict
+         * we should not insert the entry.
+         */
+
+        struct function_symbol_table_entry *entry = handle_FunDec(child_2(root), type);
+        struct function_symbol_table_entry *old = NULL;
+        if(child_3(root)->node_type == CompSt) {
+            // ExtDef : Specifier FunDec CompSt
+            // function definition
+            handle_CompSt(child_3(root));
+            // check for redefinition
+            old = 
+                hash_table_search(function_definition_symbol_table, entry);
+            if(old) {
+                semantic_error(REDEFINED_FUNCTION, entry->line_no, entry->name);
+                goto out;
+            }
+
+            // check whether this definition conflicts with existing declaration
+            old = 
+                hash_table_search(function_declaration_symbol_table, entry);
+            if(old) {
+                if(!compare_function_type(old, entry)) {
+                    sprintf(msg_buffer, "Function definition conflicts with function" 
+                            " declaration at Line %d", old->line_no);
+                    semantic_error(FUNCTION_DEFINITION_DECLARATION_CONFLICT, 
+                            entry->line_no, msg_buffer);
+                }
+                /* even if definition conflicts with declaration
+                 * we still needs to insert the definition into definition table.
+                 * anyway, the function is defined.
+                 * If we do not insert it, we are likely to throw 
+                 * a function declared but not defined error
+                 */
+            }
+            hash_table_insert(function_definition_symbol_table, entry);
+        }
+        else {
+            // ExtDef : Specifier FunDec SEMI
+            // function declaration
+
+            // check whether this declaration conflicts with existing definition
+            old = 
+                hash_table_search(function_definition_symbol_table, entry);
+            if(old) {
+                if(!compare_function_type(old, entry)) {
+                    sprintf(msg_buffer, "Function declaration conflicts with function" 
+                            " definition at Line %d", old->line_no);
+                    semantic_error(FUNCTION_DEFINITION_DECLARATION_CONFLICT, 
+                            entry->line_no, msg_buffer);
+                }
+            }
+
+            // check whether this declaration conflicts with existing declaration
+            old = 
+                hash_table_search(function_declaration_symbol_table, entry);
+            if(old) {
+                if(!compare_function_type(old, entry)) {
+                    sprintf(msg_buffer, "Function declaration conflicts with function" 
+                            " declaration at Line %d", old->line_no);
+                    semantic_error(FUNCTION_DEFINITION_DECLARATION_CONFLICT, 
+                            entry->line_no, msg_buffer);
+                }
+                /* even if these declarations do not conflict
+                 * we only store the first declaration in the hash_table
+                 */
+                goto out;
+            }
+            hash_table_insert(function_declaration_symbol_table, entry);
+        }
+out:
+        // delete the function scope created in handle_FunDec
+        delete_scope();
     }
+}
+
+int compare_semantic_type(struct semantic_type *t1, 
+        struct semantic_type *t2) {
+    if(t1->kind != t2->kind)
+        return 0;
+    switch(t1->kind) {
+        case BASIC:
+            return t1->u.basic == t2->u.basic;
+            break;
+        case ARRAY:
+            /* just like common C compilers, 
+             * we do not take array size into consideration
+             */
+            return compare_semantic_type(t1->u.array.elem, t2->u.array.elem);
+            break;
+        case STRUCTURE:
+            /* we use name equivalence for structures
+             * every structure has a name(even anonymous ones)
+             * so we only need to compare their names
+             */
+            return !strcmp(t1->u.structure.name, t2->u.structure.name);
+            break;
+        default:
+            break;
+    }
+    return 0;
+}
+
+int compare_function_type(struct function_symbol_table_entry *f1, 
+        struct function_symbol_table_entry *f2) {
+    if(strcmp(f1->name, f2->name) || f1->argc != f2->argc)
+        return 0;
+    if(!compare_semantic_type(f1->return_type, f2->return_type))
+        return 0;
+    for(int i = 0; i < f1->argc; i++)
+        if(!compare_semantic_type(f1->args[i], f2->args[i]))
+            return 0;
+    return 1;
 }
 
 void handle_ExtDecList(struct syntax_node *root, struct semantic_type *type) {
@@ -394,6 +553,59 @@ void handle_Dec(struct syntax_node *root, struct semantic_type *type) {
     }
 }
 
+struct function_symbol_table_entry * handle_FunDec(struct syntax_node *root, struct semantic_type *type) {
+    struct syntax_node *id = child_1(root);
+    struct function_symbol_table_entry *entry = 
+        Calloc(1, sizeof(struct function_symbol_table_entry));
+    entry->name = Strdup(id->value.string_value);
+    entry->return_type = type;
+    entry->line_no = id->line_no;
+    // create a new scope, parameters will be put into it
+    create_scope(VARIABLE_SCOPE);
+    if(child_3(root)->node_type == VarList) {
+        // FunDec : ID LP VarList RP
+        // this add parameters to the inner most scope
+        int count = handle_VarList(child_3(root));
+        entry->argc = count;
+        entry->args = Calloc(count, sizeof(struct semantic_type *));
+        int i = 0;
+        struct hash_node **top = cstack_top(variable_scopes);
+        struct hash_node *curr = *top;
+        while(curr) {
+            struct variable_symbol_table_entry *e = curr->elem;
+            entry->args[i] = e->type;
+            curr = curr->brother;
+            i++;
+        }
+    }
+    else {
+        // FunDec : ID LP RP
+        entry->argc = 0;
+        entry->args = NULL;
+    }
+    return entry;
+}
+
+// return the number of parameters
+int handle_VarList(struct syntax_node *root) {
+    int count = 1;
+    handle_ParamDec(child_1(root));
+    if(num_child(root) > 1) {
+        // VarList : ParamDec COMMA VarList
+        count += handle_VarList(child_3(root));
+    }
+    return count;
+}
+
+void handle_ParamDec(struct syntax_node *root) {
+    // ParamDec : Specifier VarDec
+    struct semantic_type *type = handle_Specifier(child_1(root));
+    handle_VarDec(child_2(root), type);
+}
+
+void handle_CompSt(struct syntax_node *root) {
+}
+
 static char *error_msg_format[] = {
     "Undefined variable \"%s\"",
     "Undefined function \"%s\"",
@@ -411,13 +623,15 @@ static char *error_msg_format[] = {
     "Non-existent field \"%s\"",
     "%s",
     "Duplicated name \"%s\"",
-    "Undefined structure \"%s\""
+    "Undefined structure \"%s\"",
+    "Function \"%s\" declared but no defined",
+    "%s"
 };
 
 void semantic_error(int error_type, int line_no, ...) {
     va_list args;
     va_start(args, line_no);          
-    printf("Error type %d at Line %d: ", error_type, line_no);
+    printf("Error type %d at Line %d: ", error_type + 1, line_no);
     vprintf(error_msg_format[error_type], args);
     va_end(args);
     printf(".\n");

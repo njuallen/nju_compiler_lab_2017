@@ -80,6 +80,11 @@ ExtDef : Specifier ExtDecList SEMI {
     $$ = create_nonterminal_node(ExtDef, 0);
 }
 | Specifier FunDec CompSt {
+    // function definition
+    $$ = create_nonterminal_node(ExtDef, 3, $1, $2, $3);
+}
+| Specifier FunDec SEMI {
+    // function declaration
     $$ = create_nonterminal_node(ExtDef, 3, $1, $2, $3);
 }
 ;

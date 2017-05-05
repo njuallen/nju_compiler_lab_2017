@@ -6,7 +6,7 @@ import subprocess
 import json
 import common
 
-test_dir = "../Test/parser/"
+test_dir = "../Test/syntax/"
 program = "./parser"
 
 def generate_error_output(error_list):

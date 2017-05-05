@@ -18,9 +18,9 @@ adt: test_adt.cpp $(COMMON) $(adt)
 
 .PHONY: clean test
 test: parser
-	@python2.7 test_parser.py
+	@python2.7 test_semantics.py
 test-%:
-	@python2.7 test_parser.py $@
+	@python2.7 test_semantics.py $@
 clean:
 	@rm -rf lex.yy.c syntax.tab.c syntax.tab.h parser adt 2>/dev/null >/dev/null
 submit:

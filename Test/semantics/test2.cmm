@@ -1,0 +1,11 @@
+int func(int a);
+// declaration conflict
+int func(int a, float b);
+int func(int a, int b) {
+    return 0;
+}
+
+int a;
+int f(int a, int b);
+int f(int a);
+int m(int a);
