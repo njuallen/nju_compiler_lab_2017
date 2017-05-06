@@ -1,0 +1,136 @@
+/* implement a stack using linked list
+ * since C-- does not support pointers
+ * we use integer index instead
+ */
+struct node {
+    // the element in the node
+    int elem;
+    int prev, next;
+};
+
+struct {
+    struct node buffer[1000];
+    int size;
+    int free;
+}nodes;
+
+struct stack {
+    // index of the head node
+    int head;
+};
+
+struct {
+    struct stack buffer[100];
+    int size;
+    // the index of the first free stack
+    int free;
+}stacks;
+
+int init() {
+    nodes.free = 0;
+    nodes.size = 1000;
+    stacks.free = 0;
+    stacks.size = 100;
+    return 0;
+}
+
+int allocate_stack() {
+    int index = -1;
+    if(stacks.free < stacks.size) {
+        index = stacks.free;
+        stacks.free = stacks.free + 1;
+        stacks.buffer[index].head = -1;
+    }
+    return index;
+}
+
+int allocate_node() {
+    int index = -1;
+    if(nodes.free < nodes.size) {
+        index = nodes.free;
+        nodes.free = nodes.free + 1;
+    }
+    return index;
+}
+
+int free_stack(int s) {
+    return 0;
+}
+
+int free_node(int node) {
+    return 0;
+}
+
+int stack_push(int s, int elem) {
+    int node = allocate_node();
+    int head = stacks.buffer[s].head;
+    if(node < 0)
+        return -1;
+    nodes.buffer[node].elem = elem;
+    nodes.buffer[node].next = head;
+    nodes.buffer[node].prev = -1;
+    stacks.buffer[s].head = node;
+    if(head >= 0)
+        nodes.buffer[head].prev = node;
+    return 0;
+}
+
+int stack_pop(int s) {
+    int head = stacks.buffer[s].head;
+    int next = nodes.buffer[head].next;
+    if(head < 0)
+        return -1;
+    stacks.buffer[s].head = next;
+    if(next >= 0)
+        nodes.buffer[next].prev = -1;
+    return nodes.buffer[head].elem;
+}
+
+int stack_top(int s) {
+    int head = stacks.buffer[s].head;
+    if(head < 0)
+        return -1;
+    return nodes.buffer[head].elem;
+}
+
+int stack_clear(int s) {
+    int curr = stacks.buffer[s].head;
+    int next = 0;
+    while(curr >= 0) {
+        next = nodes.buffer[curr].next;
+        free_node(curr);
+        curr = next;
+    }
+    return 0;
+}
+
+/*
+void print_nodes(int n) {
+    for(int i = 0; i < n; i++)
+        printf("(%d, %d, %d)\t", nodes.buffer[i].elem, 
+                nodes.buffer[i].prev, nodes.buffer[i].next);
+    printf("\n");
+}
+*/
+
+int main() {
+    int s;
+    int i = 0;
+    int n = 100;
+    int result;
+    init();
+    s = allocate_stack();
+    stack_push(s, 1);
+    stack_push(s, 2);
+    while(i < n) {
+        stack_push(s, i);
+        i = i + 1;
+    }
+    i = 0;
+    while(i < n) {
+        result = stack_pop(s);
+        i = i + 1;
+        // printf("%d\n", result);
+    }
+    return 0;
+}

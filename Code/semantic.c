@@ -6,7 +6,7 @@
 
 #define HASH_TABLE_SIZE 1024
 
-#define DEBUG 1
+#define DEBUG 0
 
 // number of buckets of the hash table
 int hash_string(char *s, int size) {
@@ -102,7 +102,7 @@ void handle_Program(struct syntax_node *root);
 void handle_ExtDefList(struct syntax_node *root);
 void handle_ExtDef(struct syntax_node *root);
 void handle_ExtDecList(struct syntax_node *root, struct semantic_type *type);
-void handle_VarDec(struct syntax_node *root, struct semantic_type *type);
+struct semantic_type *handle_VarDec(struct syntax_node *root, struct semantic_type *type);
 struct semantic_type *handle_Specifier(struct syntax_node *root);
 char *handle_OptTag(struct syntax_node *root);
 char *handle_Tag(struct syntax_node *root);
@@ -338,7 +338,7 @@ out:
 
 int compare_semantic_type(struct semantic_type *t1, 
         struct semantic_type *t2) {
-    if(t1->kind != t2->kind)
+    if(!t1 || !t2 || t1->kind != t2->kind)
         return 0;
     switch(t1->kind) {
         case BASIC:
@@ -365,7 +365,7 @@ int compare_semantic_type(struct semantic_type *t1,
 
 int compare_function_type(struct function_symbol_table_entry *f1, 
         struct function_symbol_table_entry *f2) {
-    if(strcmp(f1->name, f2->name) || f1->argc != f2->argc)
+    if(!f1 || !f2 || strcmp(f1->name, f2->name) || f1->argc != f2->argc)
         return 0;
     if(!compare_semantic_type(f1->return_type, f2->return_type))
         return 0;
@@ -384,7 +384,7 @@ void handle_ExtDecList(struct syntax_node *root, struct semantic_type *type) {
         handle_ExtDecList(child_3(root), type);
 }
 
-void handle_VarDec(struct syntax_node *root, struct semantic_type *type) {
+struct semantic_type *handle_VarDec(struct syntax_node *root, struct semantic_type *type) {
     if(child_1(root)->node_type == ID) {
         // VarDec : ID
         struct syntax_node *id = child_1(root);
@@ -412,6 +412,7 @@ void handle_VarDec(struct syntax_node *root, struct semantic_type *type) {
             // insert into current scope
             insert_into_inner_most_variable_scope(curr);
         }
+        return type;
     }
     else {
         // VarDec : VarDec LB INT RB
@@ -420,7 +421,7 @@ void handle_VarDec(struct syntax_node *root, struct semantic_type *type) {
         ret->kind = ARRAY;
         ret->u.array.elem = type;
         ret->u.array.size = child_3(root)->value.int_value;
-        handle_VarDec(child_1(root), ret);
+        return handle_VarDec(child_1(root), ret);
     }
 }
 
@@ -557,13 +558,24 @@ void handle_DecList(struct syntax_node *root, struct semantic_type *type) {
 
 void handle_Dec(struct syntax_node *root, struct semantic_type *type) {
     struct syntax_node *var_dec = child_1(root);
-    handle_VarDec(var_dec, type);
+    struct semantic_type *t = handle_VarDec(var_dec, type);
 
     if(var_dec->next) {
         // Dec : VarDec ASSIGNOP Exp
         if(get_inner_most_scope_type() == STRUCTURE_SCOPE) {
             sprintf(msg_buffer, "Structure field initialized at definition");
             semantic_error(STRUCTURE_FIELD_ERROR, child_2(root)->line_no, msg_buffer);
+        }
+        else {
+            struct semantic_type *exp_type = NULL;
+            int exp_is_left_value = 0;
+            exp_type = handle_Exp(child_3(root), &exp_is_left_value);
+            if(!t || !exp_type ||
+                    !compare_semantic_type(t, exp_type) ||
+                    t->kind == ARRAY) {
+                // only basic and structure types can be assigned directly
+                semantic_error(ASSIGNMENT_TYPE_MISMATCH, child_2(root)->line_no);
+            }
         }
     }
 }
@@ -786,9 +798,8 @@ struct semantic_type *handle_Exp(struct syntax_node *root, int *is_left_value) {
                                     child_3(root)->value.string_value);
                             ret = NULL;
                         }
-                        else {
+                        else
                             ret = field->type;
-                        }
                     }
                     *is_left_value = 1;
                     break;
@@ -813,6 +824,8 @@ struct semantic_type *handle_Exp(struct syntax_node *root, int *is_left_value) {
                         child_1(root)->line_no, msg_buffer);
                 ret = NULL;
             }
+            else
+                ret = exp1_type;
             *is_left_value = 0;
             break;
         case ID:
@@ -965,39 +978,39 @@ void dbg_printf(const char *format, ...) {
 }
 
 void print_variable_symbol_table_entry(struct variable_symbol_table_entry *entry) {
-    if(DEBUG) {
-        dbg_printf("(%s, ", entry->name);
-        switch(entry->type->kind) {
-            case BASIC:
-                dbg_printf("BASIC");
-                break;
-            case STRUCTURE:
-                dbg_printf("STRUCTURE");
-                break;
-            case ARRAY:
-                dbg_printf("ARRAY");
-                break;
-            default:
-                break;
-        }
-        dbg_printf(", %d)\n", entry->line_no);
+    dbg_printf("(%s, ", entry->name);
+    switch(entry->type->kind) {
+        case BASIC:
+            dbg_printf("BASIC");
+            break;
+        case STRUCTURE:
+            dbg_printf("STRUCTURE");
+            break;
+        case ARRAY:
+            dbg_printf("ARRAY");
+            break;
+        default:
+            break;
     }
+    dbg_printf(", %d)\n", entry->line_no);
 }
 
 void print_semantic_type(struct semantic_type *type) {
-    if(DEBUG) {
-        switch(type->kind) {
-            case BASIC:
-                dbg_printf("BASIC");
-                break;
-            case STRUCTURE:
-                dbg_printf("STRUCTURE");
-                break;
-            case ARRAY:
-                dbg_printf("ARRAY");
-                break;
-            default:
-                break;
-        }
+    if(!type) {
+        dbg_printf("NULL");
+        return;
+    }
+    switch(type->kind) {
+        case BASIC:
+            dbg_printf("BASIC");
+            break;
+        case STRUCTURE:
+            dbg_printf("STRUCTURE");
+            break;
+        case ARRAY:
+            dbg_printf("ARRAY");
+            break;
+        default:
+            break;
     }
 }

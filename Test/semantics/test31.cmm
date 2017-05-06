@@ -1,0 +1,14 @@
+int a[100];
+struct A {
+    int a;
+    int b;
+};
+
+struct A c;
+
+int main() {
+    int i = 1;
+    int a[10] = 1;
+    struct A b = 1;
+    struct A d = c;
+}

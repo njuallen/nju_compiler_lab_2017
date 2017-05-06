@@ -1,0 +1,120 @@
+// #include <stdio.h>
+/* implement a binary search tree
+ * since C-- does not support pointers
+ * we use integer index instead
+ */
+struct node {
+    // the element in the node
+    int elem;
+    int left, right;
+};
+
+struct {
+    struct node buffer[1000];
+    int size;
+    int free;
+}nodes;
+
+int init() {
+    nodes.free = 0;
+    nodes.size = 1000;
+    return 0;
+}
+
+int allocate_node() {
+    int index = -1;
+    if(nodes.free < nodes.size) {
+        index = nodes.free;
+        nodes.free = nodes.free + 1;
+    }
+    return index;
+}
+
+int free_node(int node) {
+    return 0;
+}
+
+int bst_insert(int curr, int father, int elem) {
+    int node = -1;
+    // this is the first node in the tree
+    if(curr < 0) {
+        node = allocate_node();
+        if(node >= 0) {
+            nodes.buffer[node].elem = elem;
+            nodes.buffer[node].left = nodes.buffer[node].right = -1;
+        }
+    }
+    else {
+        // element already exists
+        if(nodes.buffer[curr].elem == elem)
+            node = -1;
+        else if(nodes.buffer[curr].elem > elem) {
+            // search in the left subtree
+            node = bst_insert(nodes.buffer[curr].left, curr, elem);
+            if(nodes.buffer[curr].left < 0)
+                nodes.buffer[curr].left = node;
+        }
+        else if(nodes.buffer[curr].elem < elem) {
+            // search in the right subtree
+            node = bst_insert(nodes.buffer[curr].right, curr, elem);
+            if(nodes.buffer[curr].right < 0)
+                nodes.buffer[curr].right = node;
+        }
+    }
+    return node;
+}
+
+// checks whether elem is in the bst
+int bst_search(int root, int elem) {
+    if(root < 0)
+        return -1;
+    if(nodes.buffer[root].elem == elem)
+        return 0;
+    // search in the left subtree
+    else if(nodes.buffer[root].elem > elem)
+        return bst_search(nodes.buffer[root].left, elem);
+    // search in the right subtree
+    else if(nodes.buffer[root].elem < elem)
+        return bst_search(nodes.buffer[root].right, elem);
+    return -1;
+}
+
+int bst_clear(int root) {
+    if(root < 0)
+        return 0;
+    bst_clear(nodes.buffer[root].left);
+    bst_clear(nodes.buffer[root].right);
+    free_node(root);
+    return 0;
+}
+
+int print_node(int root);
+
+int bst_midorder(int root) {
+    if(root < 0)
+        return 0;
+    bst_midorder(nodes.buffer[root].left);
+    print_node(root);
+    bst_midorder(nodes.buffer[root].right);
+    return 0;
+}
+
+int print_node(int root) {
+    // printf("%d\n", nodes.buffer[root].elem);
+    return 0;
+}
+
+int main() {
+    int root = -1;
+    init();
+    root = bst_insert(root, -1, 4);
+    bst_insert(root, -1, 2);
+    bst_insert(root, -1, 6);
+    bst_insert(root, -1, 1);
+    bst_insert(root, -1, 3);
+    bst_insert(root, -1, 5);
+    bst_insert(root, -1, 7);
+    bst_midorder(root);
+    bst_clear(root);
+    return 0;
+}

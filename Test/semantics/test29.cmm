@@ -1,0 +1,35 @@
+// bubble sort
+
+int a[100];
+
+int N;
+
+int bubble_sort() {
+    int i, j, t;
+    j = 0;
+    while(j < N) {
+        i = 0;
+        while(i < N - 1 - j) {
+            if(a[i] > a[i + 1]) {
+                t = a[i];
+                a[i] = a[i + 1];
+                a[i + 1] = t;
+            }
+            i = i + 1;
+        }
+        j = j + 1;
+    }
+}
+
+int main() {
+    int i;
+    N = 100;
+    i = 0;
+    // fill the buffer with numbers
+    while(i < N) {
+        a[i] = 100 - i;
+        i = i + 1;
+    }
+    bubble_sort();
+    return 0;
+}
