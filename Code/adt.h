@@ -36,7 +36,7 @@ struct hash_table {
 struct hash_table *create_hash_table(int size, int (*hash_func)(void *elem), 
     int (*compare)(void * elem_1, void *elem_2));
 struct hash_node *hash_table_insert(struct hash_table *t, void *elem);
-void hash_table_delete(struct hash_table *t, struct hash_node *node);
+void hash_table_delete(struct hash_table *t, void *elem);
 void *hash_table_search(struct hash_table *t, void *elem);
 void destroy_hash_table(struct hash_table *t);
 

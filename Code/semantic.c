@@ -6,6 +6,8 @@
 
 #define HASH_TABLE_SIZE 1024
 
+#define DEBUG 1
+
 // number of buckets of the hash table
 int hash_string(char *s, int size) {
     int val = 0, i;
@@ -124,6 +126,9 @@ int compare_function_type(struct function_symbol_table_entry *f1,
         struct function_symbol_table_entry *f2);
 void check_undefined_functions();
 void semantic_error(int error_type, int line_no, ...);
+void dbg_printf(const char *format, ...);
+void print_variable_symbol_table_entry(struct variable_symbol_table_entry *entry);
+void print_semantic_type(struct semantic_type *type);
 
 enum error_type {
     UNDEFINED_VARIABLE = 0,
@@ -179,7 +184,8 @@ void delete_scope() {
     struct hash_node *curr = *top;
     while(curr) {
         struct hash_node *next = curr->brother;
-        hash_table_delete(variable_symbol_table, curr);
+        struct variable_symbol_table_entry *entry = curr->elem;
+        hash_table_delete(variable_symbol_table, entry);
         curr = next;
     }
     Free(top);
@@ -258,7 +264,6 @@ void handle_ExtDef(struct syntax_node *root) {
         if(child_3(root)->node_type == CompSt) {
             // ExtDef : Specifier FunDec CompSt
             // function definition
-            handle_CompSt(child_3(root), type);
             // check for redefinition
             old = 
                 hash_table_search(function_definition_symbol_table, entry);
@@ -285,6 +290,12 @@ void handle_ExtDef(struct syntax_node *root) {
                  */
             }
             hash_table_insert(function_definition_symbol_table, entry);
+            /* we should do this after we have insert the entry into the 
+             * function_definition_symbol_table
+             * or we will throw an undefined function error when we 
+             * try to call the function in the function's body
+             */
+            handle_CompSt(child_3(root), type);
         }
         else {
             // ExtDef : Specifier FunDec SEMI
@@ -743,9 +754,11 @@ struct semantic_type *handle_Exp(struct syntax_node *root, int *is_left_value) {
                     if(!exp1_type || exp1_type->kind != ARRAY) {
                         semantic_error(NOT_AN_ARRAY, child_2(root)->line_no);
                         ret = NULL;
-                    } else if(!exp2_type || exp2_type->kind != BASIC || 
-                            exp2_type->u.basic != INT) {
-                        semantic_error(ARRAY_INDEX_NOT_INTEGER, child_2(root)->line_no);
+                    }
+                    else {
+                        if(!exp2_type || exp2_type->kind != BASIC || 
+                                exp2_type->u.basic != INT)
+                            semantic_error(ARRAY_INDEX_NOT_INTEGER, child_2(root)->line_no);
                         ret = exp1_type->u.array.elem;
                     }
                     *is_left_value = 1;
@@ -939,4 +952,52 @@ void semantic_error(int error_type, int line_no, ...) {
     vprintf(error_msg_format[error_type], args);
     va_end(args);
     printf(".\n");
+}
+
+// only printf in debug mode
+void dbg_printf(const char *format, ...) {
+    if(DEBUG) {
+        va_list args;
+        va_start(args, format); 
+        vprintf(format, args);
+        va_end(args);
+    }
+}
+
+void print_variable_symbol_table_entry(struct variable_symbol_table_entry *entry) {
+    if(DEBUG) {
+        dbg_printf("(%s, ", entry->name);
+        switch(entry->type->kind) {
+            case BASIC:
+                dbg_printf("BASIC");
+                break;
+            case STRUCTURE:
+                dbg_printf("STRUCTURE");
+                break;
+            case ARRAY:
+                dbg_printf("ARRAY");
+                break;
+            default:
+                break;
+        }
+        dbg_printf(", %d)\n", entry->line_no);
+    }
+}
+
+void print_semantic_type(struct semantic_type *type) {
+    if(DEBUG) {
+        switch(type->kind) {
+            case BASIC:
+                dbg_printf("BASIC");
+                break;
+            case STRUCTURE:
+                dbg_printf("STRUCTURE");
+                break;
+            case ARRAY:
+                dbg_printf("ARRAY");
+                break;
+            default:
+                break;
+        }
+    }
 }

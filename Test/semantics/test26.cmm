@@ -1,0 +1,25 @@
+// test scopes
+struct A {
+    int a;
+    struct {
+        int a;
+    }b;
+}a;
+
+
+int b;
+
+int main(int a, int c) {
+    a = 1;
+    b = c;
+    if(a > 1) {
+        struct A a;
+        a.a = b;
+        a.b.a = b;
+    }
+    return a;
+}
+
+int func(int a, int b, int c) {
+    return 1;
+}

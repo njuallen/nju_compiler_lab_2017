@@ -33,9 +33,26 @@ struct hash_node *hash_table_insert(struct hash_table *t, void *elem) {
     return curr;
 }
 
-void hash_table_delete(struct hash_table *t, struct hash_node *node) {
+// delete the first one that equals to elem
+void hash_table_delete(struct hash_table *t, void *elem) {
+    int hash_val = t->hash_func(elem);
+    int slot = hash_val % t->size;
+    // hash_node to delete
+    struct hash_node *node = NULL;
+    struct hash_node *curr = t->nodes[slot];
+    while(curr)
+        if(!t->compare(curr->elem, elem)) {
+            node = curr;
+            break;
+        }
+        else
+            curr = curr->next;
+
     if(node->prev)
         node->prev->next = node->next;
+    else
+        t->nodes[slot] = node->next;
+
     if(node->next)
         node->next->prev = node->prev;
 }
