@@ -6,7 +6,7 @@ import subprocess
 import json
 import common
 
-test_dir = "../Test/syntax/"
+test_dir = ""
 program = "./parser"
 
 def generate_error_output(error_list):
@@ -86,15 +86,19 @@ def run_test(cmm_file):
 if __name__ == "__main__":
     cmm_files = []
     argc = len(sys.argv)
-    if argc >= 2:
-        # user has specified which test to run
-        for i in range(1, argc):
-            cmm_file = sys.argv[i].split("-")[1] + ".cmm"
-            cmm_files.append(cmm_file)
+    if argc < 2:
+        print "Expect test_dir!"
     else:
-        # otherwise we run all the testcases
-        output = subprocess.check_output("cd %s; ls *.cmm" % test_dir, shell=True)
-        cmm_files = output.split()
+        test_dir = sys.argv[1]
+        if argc >= 3:
+            # user has specified which test to run
+            for i in range(2, argc):
+                cmm_file = sys.argv[i].split("-")[1] + ".cmm"
+                cmm_files.append(cmm_file)
+        else:
+            # otherwise we run all the testcases
+            output = subprocess.check_output("cd %s; ls *.cmm" % test_dir, shell=True)
+            cmm_files = output.split()
 
-    for cmm_file in cmm_files:
-        run_test(cmm_file)
+        for cmm_file in cmm_files:
+            run_test(cmm_file)

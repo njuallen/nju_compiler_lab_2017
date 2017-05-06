@@ -18,10 +18,13 @@ adt: test_adt.cpp $(COMMON) $(adt)
 
 .PHONY: clean test
 test: parser
-	@python2.7 test_semantics.py
+	@python2.7 test_parser.py ../Test/semantics/
 test-%:
-	@python2.7 test_semantics.py $@
+	@python2.7 test_parser.py ../Test/semantics/ $@
 clean:
 	@rm -rf lex.yy.c syntax.tab.c syntax.tab.h parser adt 2>/dev/null >/dev/null
+	@rm -rf ../Test/semantics/*.out ../Test/semantics/*.correct
+	@chmod -w ../Test/semantics/*.cmm ../Test/semantics/*.answer
+	@chmod -w ../Test/syntax/*.cmm ../Test/syntax/*.answer
 submit:
 	cd ../../ && tar czf 141242022_lab.tar.gz nju_compiler_lab_2017 --exclude='nju_compiler_lab_2017/.git' --exclude='nju_compiler_lab_2017/Handouts' 
