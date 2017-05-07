@@ -674,8 +674,9 @@ void handle_Stmt(struct syntax_node *root, struct semantic_type *function_return
              * else it's false.
              * Just like with integer
              */
-            if(!exp_type || exp_type->kind != BASIC) {
-                sprintf(msg_buffer, "\"if\" expects condition of basic type");
+            if(!exp_type || exp_type->kind != BASIC ||
+                    exp_type->u.basic != INT) {
+                sprintf(msg_buffer, "\"if\" expects condition of integer type");
                 semantic_error(OPERANDS_TYPE_MISMATCH, 
                         child_1(root)->line_no, msg_buffer);
             }
@@ -686,8 +687,9 @@ void handle_Stmt(struct syntax_node *root, struct semantic_type *function_return
         case WHILE:
             // Stmt : WHILE LP Exp RP Stmt
             exp_type = handle_Exp(child_3(root), &is_left_value);
-            if(!exp_type || exp_type->kind != BASIC) {
-                sprintf(msg_buffer, "\"while\" expects condition of basic type");
+            if(!exp_type || exp_type->kind != BASIC ||
+                    exp_type->u.basic != INT) {
+                sprintf(msg_buffer, "\"while\" expects condition of integer type");
                 semantic_error(OPERANDS_TYPE_MISMATCH, 
                         child_1(root)->line_no, msg_buffer);
             }
@@ -715,10 +717,8 @@ struct semantic_type *handle_Exp(struct syntax_node *root, int *is_left_value) {
                 case MINUS:
                 case STAR:
                 case DIV:
-                case AND:
-                case OR:
                 case RELOP:
-                    /* Exp arithmetic/logical operator Exp
+                    /* Exp arithmetic/comparison operator Exp
                      * Exp must be of basic type
                      *
                      * Exp : Exp PLUS Exp
@@ -726,14 +726,39 @@ struct semantic_type *handle_Exp(struct syntax_node *root, int *is_left_value) {
                      * Exp : Exp STAR Exp
                      * Exp : Exp DIV Exp
                      * Exp : Exp RELOP Exp
+                     */
+                    exp2_type = handle_Exp(child_3(root), &exp2_is_left_value);
+                    if(!exp1_type || !exp2_type || exp1_type->kind != BASIC || 
+                            exp2_type->kind != BASIC || 
+                            exp1_type->u.basic != exp2_type->u.basic) {
+                        sprintf(msg_buffer, "arithmetic and relational operators expect operand of basic type");
+                        semantic_error(OPERANDS_TYPE_MISMATCH, 
+                                child_2(root)->line_no, msg_buffer);
+                        ret = NULL;
+                    }
+                    else {
+                        if(child_2(root)->node_type == RELOP) {
+                            ret = Calloc(1, sizeof(struct semantic_type));
+                            ret->kind = BASIC;
+                            ret->u.basic = INT;
+                        }
+                        else
+                            ret = exp1_type;
+                    }
+                    *is_left_value = 0;
+                    break;
+                case AND:
+                case OR:
+                    /*
                      * Exp : Exp AND Exp
                      * Exp : Exp OR Exp
                      */
                     exp2_type = handle_Exp(child_3(root), &exp2_is_left_value);
                     if(!exp1_type || !exp2_type || exp1_type->kind != BASIC || 
                             exp2_type->kind != BASIC || 
-                            exp1_type->u.basic != exp2_type->u.basic) {
-                        sprintf(msg_buffer, "arithmetic and logical operators expect operand of basic type");
+                            exp1_type->u.basic != INT ||
+                            exp2_type->u.basic != INT) {
+                        sprintf(msg_buffer, "logical operators expect operand of basic type");
                         semantic_error(OPERANDS_TYPE_MISMATCH, 
                                 child_2(root)->line_no, msg_buffer);
                         ret = NULL;
@@ -814,12 +839,24 @@ struct semantic_type *handle_Exp(struct syntax_node *root, int *is_left_value) {
             *is_left_value = exp1_is_left_value;
             break;
         case MINUS:
-        case NOT:
-            // Exp : MINUS Exp
             // Exp : NOT Exp
             exp1_type = handle_Exp(child_2(root), &exp1_is_left_value);
             if(!exp1_type || exp1_type->kind != BASIC) {
-                sprintf(msg_buffer, "arithmetic and logical operators expect operand of basic type");
+                sprintf(msg_buffer, "arithmetic operators expect operand of basic type");
+                semantic_error(OPERANDS_TYPE_MISMATCH, 
+                        child_1(root)->line_no, msg_buffer);
+                ret = NULL;
+            }
+            else
+                ret = exp1_type;
+            *is_left_value = 0;
+            break;
+        case NOT:
+            // Exp : NOT Exp
+            exp1_type = handle_Exp(child_2(root), &exp1_is_left_value);
+            if(!exp1_type || exp1_type->kind != BASIC ||
+                    exp1_type->u.basic != INT) {
+                sprintf(msg_buffer, "logical operators expect operand of basic type");
                 semantic_error(OPERANDS_TYPE_MISMATCH, 
                         child_1(root)->line_no, msg_buffer);
                 ret = NULL;

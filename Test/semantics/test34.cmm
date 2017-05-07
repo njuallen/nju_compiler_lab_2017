@@ -1,0 +1,18 @@
+int main() {
+    int a = 1;
+    float b = 0.0;
+    if(a > 1 && b <= -0.1) {
+        while(b < 0.0) {
+            if(!a){
+                if(a * a >= (a - a)) {
+                    if(a * a) {
+                    }
+                }
+            }
+        }
+    }
+    if(!(b * (-b))) 
+        if(b) {
+        }
+    return 0;
+}
