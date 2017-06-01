@@ -49,52 +49,13 @@ struct hash_table *variable_symbol_table, *function_definition_symbol_table,
  */
 struct cstack *variable_scopes, *scope_types;
 
-#define MAX_MSG_SIZE 1024;
-char msg_buffer[1024];
+#define MAX_MSG_SIZE 1024
+char msg_buffer[MAX_MSG_SIZE];
 
 enum scope_type {
     VARIABLE_SCOPE = 0,
     STRUCTURE_SCOPE
 };
-
-
-// find the id'th child of a parent node
-struct syntax_node *find_child(struct syntax_node *root, int id) {
-    struct syntax_node *ret = root->child;
-    for(int i = 0; i < id - 1; i++) {
-        if(!ret)
-            app_error("Can not find specified child node");
-        ret = ret->next;
-    }
-    if(!ret)
-        app_error("Can not find specified child node");
-    return ret;
-}
-
-// return the number of child of a node
-int num_child(struct syntax_node *root) {
-    struct syntax_node *child = root->child;
-    int count = 0;
-    while(child) {
-        count++;
-        child = child->next;
-    }
-    return count;
-}
-
-
-#define child_number(id) \
-struct syntax_node *child_##id(struct syntax_node *root) { \
-    return find_child(root, id); \
-} \
-
-child_number(1);
-child_number(2);
-child_number(3);
-child_number(4);
-child_number(5);
-child_number(6);
-child_number(7);
 
 #define MAX_NESTED_SCOPES 100
 
@@ -179,6 +140,10 @@ void create_scope(int scope_type) {
 }
 
 void delete_scope() {
+#ifdef NESTED_SCOPE
+    // if nested_scope is supported, scopes needs to be deleted
+    // if not, we do not delete scope
+    // lab3 does not require nested scope
     Free(cstack_pop(scope_types));
     struct hash_node **top = cstack_pop(variable_scopes);
     struct hash_node *curr = *top;
@@ -189,6 +154,7 @@ void delete_scope() {
         curr = next;
     }
     Free(top);
+#endif
 }
 
 struct hash_node *search_inner_most_variable_scope(char *name) {

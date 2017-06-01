@@ -480,3 +480,41 @@ void delete_syntax_tree(struct syntax_node *root) {
         p = p->next;
     }
 }
+
+// find the id'th child of a parent node
+struct syntax_node *find_child(struct syntax_node *root, int id) {
+    struct syntax_node *ret = root->child;
+    for(int i = 0; i < id - 1; i++) {
+        if(!ret)
+            app_error("Can not find specified child node");
+        ret = ret->next;
+    }
+    if(!ret)
+        app_error("Can not find specified child node");
+    return ret;
+}
+
+// return the number of child of a node
+int num_child(struct syntax_node *root) {
+    struct syntax_node *child = root->child;
+    int count = 0;
+    while(child) {
+        count++;
+        child = child->next;
+    }
+    return count;
+}
+
+#define child_number(id) \
+struct syntax_node *child_##id(struct syntax_node *root) { \
+    return find_child(root, id); \
+} \
+
+child_number(1);
+child_number(2);
+child_number(3);
+child_number(4);
+child_number(5);
+child_number(6);
+child_number(7);
+

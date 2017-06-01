@@ -6,8 +6,8 @@ ADT = adt.c adt.h
 
 all: parser adt
 
-parser: syntax.tab.c semantic.c semantic.h main.c syntax.h $(COMMON) $(adt)
-	$(CC) $(CFLAGS) syntax.tab.c semantic.c main.c adt.c csapp.c -lfl -ly -o parser
+parser: syntax.tab.c semantic.c semantic.h ir.c ir.h main.c syntax.h $(COMMON) $(adt)
+	$(CC) $(CFLAGS) syntax.tab.c semantic.c ir.c main.c adt.c csapp.c -lfl -ly -o parser
 lex.yy.c: lex.l
 	flex lex.l
 syntax.tab.c: syntax.y lex.yy.c

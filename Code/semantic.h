@@ -28,6 +28,8 @@ struct variable_symbol_table_entry {
     char *name;
     struct semantic_type *type;
     int line_no;
+    // 这个变量名在中间代码中对应的变量id
+    int var_no;
 };
 
 struct function_symbol_table_entry {

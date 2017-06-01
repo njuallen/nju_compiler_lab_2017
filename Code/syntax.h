@@ -30,4 +30,13 @@ struct syntax_node {
 
 void delete_syntax_tree(struct syntax_node *root);
 void print_syntax_tree(struct syntax_node *root, int indent_level);
+struct syntax_node *find_child(struct syntax_node *root, int id);
+int num_child(struct syntax_node *root);
+struct syntax_node *child_1(struct syntax_node *root);
+struct syntax_node *child_2(struct syntax_node *root);
+struct syntax_node *child_3(struct syntax_node *root);
+struct syntax_node *child_4(struct syntax_node *root);
+struct syntax_node *child_5(struct syntax_node *root);
+struct syntax_node *child_6(struct syntax_node *root);
+struct syntax_node *child_7(struct syntax_node *root);
 #endif

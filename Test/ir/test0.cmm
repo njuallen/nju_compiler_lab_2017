@@ -1,0 +1,9 @@
+int main(int b) {
+    return 0;
+}
+
+int function(int c, float d, int f) {
+}
+
+int func() {
+}

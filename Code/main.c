@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "syntax.h"
 #include "semantic.h"
+#include "ir.h"
 
 extern struct syntax_node *root;
 
@@ -22,7 +23,7 @@ int main(int argc, char** argv) {
     int ret = yyparse();
     if(is_successful && !ret) {
         check_semantics(root);
-        // print_syntax_tree(root, 0);
+        generate_ir(root);
         delete_syntax_tree(root);
     }
     return 0;
