@@ -131,3 +131,15 @@ char *Strdup(const char *s) {
         unix_error("Strdup error");
     return ret;
 }
+
+char *Asprintf(const char *fmt, ...) {
+    char *str;
+    va_list ap;
+    va_start(ap, fmt);
+
+    if(vasprintf(&str, fmt, ap) == -1)
+        unix_error("Asprintf error");
+
+    va_end(ap);
+    return str;
+}

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include <time.h>
 #include <errno.h>
 
@@ -29,4 +30,5 @@ void Free(void *ptr);
 
 /* string wrappers */
 char *Strdup(const char *s);
+char *Asprintf(const char *fmt, ...);
 #endif

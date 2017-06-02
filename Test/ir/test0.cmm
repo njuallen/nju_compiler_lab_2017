@@ -3,7 +3,13 @@ int main(int b) {
 }
 
 int function(int c, float d, int f) {
+    int e = 2;
+    int g = 1;
+    float h[100];
 }
 
 int func() {
+    int i[10];
+    int j = 4;
+    int k[1000];
 }

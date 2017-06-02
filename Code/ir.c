@@ -20,12 +20,22 @@ struct ir_code *translate_ExtDef(struct syntax_node *root);
 struct ir_code *translate_FunDec(struct syntax_node *root);
 struct ir_code *translate_VarList(struct syntax_node *root);
 struct ir_code *translate_ParamDec(struct syntax_node *root);
+struct ir_code *translate_CompSt(struct syntax_node *root);
+struct ir_code *translate_StmtList(struct syntax_node *root);
+struct ir_code *translate_DefList(struct syntax_node *root);
+struct ir_code *translate_Def(struct syntax_node *root);
+struct ir_code *translate_DecList(struct syntax_node *root);
+struct ir_code *translate_Dec(struct syntax_node *root);
+struct ir_code *translate_VarDec(struct syntax_node *root, struct operand **op_param);
+struct ir_code *translate_Exp(struct syntax_node *root, struct operand **op_param);
+
 void ir_error(int line_no, char *msg);
 int get_variable_var_no(char *name);
 struct ir_code *concat_code(struct ir_code *code1, struct ir_code *code2);
 struct operand *create_operand(int kind, ...);
 struct ir_code *create_ir_code(int kind, int argc, ...);
 void print_ir_code(struct ir_code *code);
+char *get_operand_name(struct operand *op);
 
 void generate_ir(struct syntax_node *root) {
     // generate ir
@@ -65,10 +75,11 @@ struct ir_code *translate_ExtDef(struct syntax_node *root) {
             // ExtDef : Specifier FunDec CompSt
             // function definition
             struct ir_code *code1 = translate_FunDec(child_2(root));
-            return code1;
             // we get the function signature
             // now we generate code for function name and params
-            // struct ir_code * code2 = translate_CompSt(child_3(root), type);
+            struct ir_code * code2 = translate_CompSt(child_3(root));
+            code1 = concat_code(code1, code2);
+            return code1;
         }
         else {
             // ExtDef : Specifier FunDec SEMI
@@ -141,6 +152,167 @@ struct ir_code *translate_ParamDec(struct syntax_node *root) {
     return code;
 }
 
+struct ir_code *translate_CompSt(struct syntax_node *root) {
+    // CompSt : LC DefList StmtList RC
+    struct ir_code *code1 = translate_DefList(child_2(root));
+    struct ir_code *code2 = translate_StmtList(child_3(root));
+    return concat_code(code1, code2);
+}
+
+struct ir_code *translate_StmtList(struct syntax_node *root) {
+    return NULL;
+}
+
+struct ir_code *translate_DefList(struct syntax_node *root) {
+    if(!root->is_empty) {
+        // ExtDefList : ExtDef ExtDefList
+        struct ir_code *code1 = translate_Def(child_1(root));
+        struct ir_code *code2 = translate_DefList(child_2(root));
+        return concat_code(code1, code2);
+    }
+    return NULL;
+}
+
+struct ir_code *translate_Def(struct syntax_node *root) {
+    // ExtDef : Specifier DecList SEMI
+    if(child_2(root)->node_type == DecList) {
+        return translate_DecList(child_2(root));
+    }
+    return NULL;
+}
+
+struct ir_code *translate_DecList(struct syntax_node *root) {
+    struct ir_code *code1 = translate_Dec(child_1(root));
+    if(child_1(root)->next) {
+        // DecList : Dec COMMA DecList
+        struct ir_code *code2 = translate_DecList(child_3(root));
+        code1 = concat_code(code1, code2);
+    }
+    return code1;
+}
+
+struct ir_code *translate_Dec(struct syntax_node *root) {
+    struct syntax_node *var_dec = child_1(root);
+    struct operand *op1, *op2;
+    struct ir_code *code1 = translate_VarDec(var_dec, &op1);
+
+    if(var_dec->next) {
+        // Dec : VarDec ASSIGNOP Exp
+        // array assignment is not supported
+        // so this must be assignment between basic types
+        struct ir_code *code2 = translate_Exp(child_3(root), &op2);
+        struct ir_code *code3 = create_ir_code(IR_ASSIGN, 2, op1, op2);
+        code1 = concat_code(concat_code(code1, code2), code3);
+    }
+    return code1;
+}
+
+struct ir_code *translate_VarDec(struct syntax_node *root, struct operand **op) {
+    if(child_1(root)->node_type == ID) {
+        // VarDec : ID
+        struct syntax_node *id = child_1(root);
+        int var_no = get_variable_var_no(Strdup(id->value.string_value));
+        *op = create_operand(OP_VARIABLE, var_no);
+        // just a declaration, no code
+    }
+    else {
+        // VarDec : VarDec LB INT RB
+        // array type
+        // since we do not support high dimension arrays(> 1 dimension)
+        // VarDec must produce ID
+        if(child_1(child_1(root))->node_type != ID) {
+            ir_error(root->line_no, "High dimension arrays is not supported");
+        }
+        else {
+            struct syntax_node *id = child_1(child_1(root));
+            int var_no = get_variable_var_no(Strdup(id->value.string_value));
+            *op = create_operand(OP_VARIABLE, var_no);
+            // allocate space for the array
+            // since this is an array of basic type
+            // so array element size is 4
+            struct ir_code *code = create_ir_code(IR_DEC, 2, *op, 
+                    create_operand(OP_CONSTANT, child_3(root)->value.int_value * 4));
+            return code;
+        }
+    }
+    return NULL;
+}
+
+struct ir_code *translate_Exp(struct syntax_node *root, struct operand **op) {
+    switch(child_1(root)->node_type) {
+        case Exp:
+            switch(child_2(root)->node_type) {
+                case PLUS:
+                case MINUS:
+                case STAR:
+                case DIV:
+                case RELOP:
+                    /* Exp arithmetic/comparison operator Exp
+                     * Exp must be of basic type
+                     *
+                     * Exp : Exp PLUS Exp
+                     * Exp : Exp MINUS Exp
+                     * Exp : Exp STAR Exp
+                     * Exp : Exp DIV Exp
+                     * Exp : Exp RELOP Exp
+                     */
+                    break;
+                case AND:
+                case OR:
+                    /*
+                     * Exp : Exp AND Exp
+                     * Exp : Exp OR Exp
+                     */
+                    break;
+                case ASSIGNOP:
+                    // Exp : Exp ASSIGNOP Exp
+                    break;
+                case LB:
+                    // array
+                    // Exp : Exp LB Exp RB
+                    break;
+                case DOT:
+                    // structure
+                    // Exp : Exp DOT ID
+                    break;
+                default:
+                    break;
+            }
+            break;
+        case LP:
+            // Exp : LP Exp RP
+            break;
+        case MINUS:
+            // Exp : NOT Exp
+            break;
+        case NOT:
+            // Exp : NOT Exp
+            break;
+        case ID:
+            if(num_child(root) > 1) {
+                // function call
+            }
+            else {
+                /* simply a variable
+                 * we look it up in the variable_symbol_table
+                 */
+            }
+            break;
+        case INT:
+            // Exp : INT
+            *op = create_operand(OP_CONSTANT, child_1(root)->value.int_value);
+            break;
+        case FLOAT:
+            // Exp : FLOAT
+            *op = create_operand(OP_CONSTANT, child_1(root)->value.float_value);
+            break;
+        default:
+            break;
+    }
+    // No code
+    return NULL;
+}
+
 void ir_error(int line_no, char *msg) {
     printf("IR generation error at Line %d: %s.\n", line_no, msg);
     generate_ir_successful = 0;
@@ -156,8 +328,9 @@ int get_variable_var_no(char *name) {
     // since all variable_symbol_table_entry are calloced
     // so by default, their var_no is 0
     // so we can use this to check whether this variable has been allocated a var_no
-    if(old->var_no == 0)
+    if(old->var_no == 0) {
         old->var_no = var_no_counter++;
+    }
     return old->var_no;
 }
 
@@ -215,14 +388,43 @@ struct ir_code *create_ir_code(int kind, int argc, ...) {
     return code;
 }
 
+char *get_operand_name(struct operand *op) {
+    switch(op->kind) {
+        case OP_VARIABLE:
+            return Asprintf("t%d", op->u.var_no);
+            break;
+        case OP_CONSTANT:
+            // what if we encounter float constant?
+            return Asprintf("#%d", op->u.value);
+            break;
+        case OP_ADDRESS:
+            return Asprintf("*t%d", op->u.var_no);
+            break;
+        case OP_NAME:
+            return Asprintf("s", op->u.name);
+            break;
+        default:
+            return NULL;
+            break;
+    }
+}
+
 void print_ir_code(struct ir_code *code) {
     switch(code->kind) {
         case IR_FUNCTION:
-            printf("FUNCTION %s :\n", code->op[0]->u.name);
+            printf("FUNCTION %s :\n", get_operand_name(code->op[0]));
             break;
         case IR_PARAM:
             // our variable name starts with t
-            printf("PARAM t%d\n", code->op[0]->u.var_no);
+            printf("PARAM %s\n", get_operand_name(code->op[0]));
+            break;
+        case IR_ASSIGN:
+            printf("%s := %s\n", get_operand_name(code->op[0]), 
+                    get_operand_name(code->op[1]));
+            break;
+        case IR_DEC:
+            printf("DEC %s [%d]\n", get_operand_name(code->op[0]), 
+                    code->op[1]->u.value);
             break;
         default:
             break;
