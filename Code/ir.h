@@ -1,7 +1,7 @@
 #ifndef IR_H
 #define IR_H
 
-#define MAX_OPERAND 3
+#define MAX_OPERAND 4
 
 // give this enumerators a OP_ prefix 
 // so that they won't clash with enumerators from syntax***
@@ -21,8 +21,8 @@ struct operand {
 struct ir_code {
     enum { 
         IR_LABEL, IR_FUNCTION, IR_ASSIGN,
-        IR_ADD, IR_SUB, IR_MUL, IR_DIV, 
-        IR_ADDRESS, IR_LOAD, IR_STORE, 
+        IR_ARITHMETIC, 
+        IR_ADDRESS,
         IR_GOTO, IR_IF, IR_RETURN, IR_DEC,
         IR_ARG, IR_CALL, IR_PARAM,
         IR_READ, IR_WRITE

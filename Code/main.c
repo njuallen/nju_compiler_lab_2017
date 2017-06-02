@@ -5,7 +5,7 @@
 
 extern struct syntax_node *root;
 
-extern int is_successful;
+extern int is_syntax_correct;
 
 int main(int argc, char** argv) {
     // we only deal with one input c source file
@@ -21,9 +21,9 @@ int main(int argc, char** argv) {
     }
     yyrestart(f);
     int ret = yyparse();
-    if(is_successful && !ret) {
-        check_semantics(root);
-        generate_ir(root);
+    if(is_syntax_correct && !ret) {
+        if(check_semantics(root))
+            generate_ir(root);
         delete_syntax_tree(root);
     }
     return 0;

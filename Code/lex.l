@@ -138,10 +138,35 @@ white_spaces ([ \t]+)
     yylval.node_value = ret;
     return RELOP;
 }
-"+" { yylval.node_value = create_terminal_node(PLUS); return PLUS; }
-"-" { yylval.node_value = create_terminal_node(MINUS); return MINUS; }
-"*" { yylval.node_value = create_terminal_node(STAR); return STAR; }
-"/" { yylval.node_value = create_terminal_node(DIV); return DIV; }
+
+"+" {
+    struct syntax_node *ret = create_terminal_node(PLUS);
+    ret->value.string_value = Strdup(yytext);
+    yylval.node_value = ret;
+    return PLUS;
+}
+
+"-" {
+    struct syntax_node *ret = create_terminal_node(MINUS);
+    ret->value.string_value = Strdup(yytext);
+    yylval.node_value = ret;
+    return MINUS;
+}
+
+"*" {
+    struct syntax_node *ret = create_terminal_node(STAR);
+    ret->value.string_value = Strdup(yytext);
+    yylval.node_value = ret;
+    return STAR;
+}
+
+"/" {
+    struct syntax_node *ret = create_terminal_node(DIV);
+    ret->value.string_value = Strdup(yytext);
+    yylval.node_value = ret;
+    return DIV;
+}
+
 "&&" { yylval.node_value = create_terminal_node(AND); return AND; }
 "||" { yylval.node_value = create_terminal_node(OR); return OR; }
 "." { yylval.node_value = create_terminal_node(DOT); return DOT; }
@@ -228,14 +253,14 @@ int get_float(float *val, char *msg) {
 }
 
 void lexical_error(char *msg) {
-    extern int is_successful;
+    extern int is_syntax_correct;
     /* when we encounter an lexical error
      * we usually returns nothing in the action part
      * so the parser usually go on as nothing happens
      * we use error to let main function know that
      * there is an error even if the syntax tree is successfully built
      */
-    is_successful = 0;
+    is_syntax_correct = 0;
     printf("Error type A at Line %d: %s \'%s\'.\n",
             yylineno, msg, yytext);
 }

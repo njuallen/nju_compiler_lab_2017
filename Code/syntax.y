@@ -11,7 +11,7 @@ struct syntax_node *create_nonterminal_node(int node_type, int argc, ...);
  * or we have done some error recovery and 
  * successfully built a syntax tree
  */
-int is_successful = 1;
+int is_syntax_correct = 1;
 %}
 
 %locations
@@ -76,7 +76,7 @@ ExtDef : Specifier ExtDecList SEMI {
 }
 | error SEMI {
     yyerrok;
-    is_successful = 0;
+    is_syntax_correct = 0;
     $$ = create_nonterminal_node(ExtDef, 0);
 }
 | Specifier FunDec CompSt {
@@ -112,7 +112,7 @@ StructSpecifier : STRUCT OptTag LC DefList RC {
 }
 | STRUCT OptTag LC error RC {
     yyerrok;
-    is_successful = 0;
+    is_syntax_correct = 0;
     $$ = create_nonterminal_node(StructSpecifier, 0);
 }
 | STRUCT Tag {
@@ -143,7 +143,7 @@ VarDec : ID {
 }
 | VarDec LB error RB {
     yyerrok;
-    is_successful = 0;
+    is_syntax_correct = 0;
     $$ = create_nonterminal_node(VarDec, 0);
 }
 ;
@@ -153,7 +153,7 @@ FunDec : ID LP VarList RP {
 }
 | ID LP error RP {
     yyerrok;
-    is_successful = 0;
+    is_syntax_correct = 0;
     $$ = create_nonterminal_node(FunDec, 0);
 }
 | ID LP RP {
@@ -181,7 +181,7 @@ CompSt : LC DefList StmtList RC {
 }
 | LC error RC {
     yyerrok;
-    is_successful = 0;
+    is_syntax_correct = 0;
     $$ = create_nonterminal_node(CompSt, 0);
 }
 ;
@@ -218,7 +218,7 @@ Stmt : Exp SEMI {
      * so that consecutive errors will not be supressed
      */
     yyerrok;
-    is_successful = 0;
+    is_syntax_correct = 0;
     /* remember to create an empty production rule node for it
      * or its parent will encounter an segment fault when call create_nonterminal_node
      */
@@ -229,7 +229,7 @@ Stmt : Exp SEMI {
 }
 | IF LP error RP Stmt %prec LOWER_THAN_ELSE {
     yyerrok;
-    is_successful = 0;
+    is_syntax_correct = 0;
     $$ = create_nonterminal_node(Stmt, 0);
 }
 | IF LP Exp RP Stmt ELSE Stmt {
@@ -237,7 +237,7 @@ Stmt : Exp SEMI {
 }
 | IF LP error RP Stmt ELSE Stmt {
     yyerrok;
-    is_successful = 0;
+    is_syntax_correct = 0;
     $$ = create_nonterminal_node(Stmt, 0);
 }
 | WHILE LP Exp RP Stmt {
@@ -245,7 +245,7 @@ Stmt : Exp SEMI {
 }
 | WHILE LP error RP Stmt {
     yyerrok;
-    is_successful = 0;
+    is_syntax_correct = 0;
     $$ = create_nonterminal_node(Stmt, 0);
 }
 ;
@@ -265,7 +265,7 @@ Def : Specifier DecList SEMI {
 }
 | error SEMI {
     yyerrok;
-    is_successful = 0;
+    is_syntax_correct = 0;
     $$ = create_nonterminal_node(Def, 0);
 }
 ;
@@ -317,7 +317,7 @@ Exp : Exp ASSIGNOP Exp {
 }
 | LP error RP {
     yyerrok;
-    is_successful = 0;
+    is_syntax_correct = 0;
     $$ = create_nonterminal_node(Exp, 0);
 }
 | MINUS Exp %prec UNARY_MINUS {
@@ -331,7 +331,7 @@ Exp : Exp ASSIGNOP Exp {
 }
 | ID LP error RP {
     yyerrok;
-    is_successful = 0;
+    is_syntax_correct = 0;
     $$ = create_nonterminal_node(Exp, 0);
 }
 | ID LP RP {
@@ -342,7 +342,7 @@ Exp : Exp ASSIGNOP Exp {
 }
 | Exp LB error RB {
     yyerrok;
-    is_successful = 0;
+    is_syntax_correct = 0;
     $$ = create_nonterminal_node(Exp, 0);
 }
 | Exp DOT ID {

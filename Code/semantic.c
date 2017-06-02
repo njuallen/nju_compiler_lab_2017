@@ -113,6 +113,8 @@ enum error_type {
     FUNCTION_DEFINITION_DECLARATION_CONFLICT
 };
 
+int is_semantics_correct = 1;
+
 int check_semantics(struct syntax_node *root) {
     variable_symbol_table = 
         create_hash_table(HASH_TABLE_SIZE, hash_variable, compare_variable);
@@ -125,7 +127,7 @@ int check_semantics(struct syntax_node *root) {
     variable_scopes = create_cstack(MAX_NESTED_SCOPES);
     scope_types = create_cstack(MAX_NESTED_SCOPES);
     handle_Program(root);
-    return 0;
+    return is_semantics_correct;
 }
 
 // create a scope of type scope_type
@@ -968,6 +970,7 @@ void semantic_error(int error_type, int line_no, ...) {
     vprintf(error_msg_format[error_type], args);
     va_end(args);
     printf(".\n");
+    is_semantics_correct = 0;
 }
 
 // only printf in debug mode

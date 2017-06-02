@@ -14,6 +14,7 @@ int generate_ir_successful = 1;
 extern struct hash_table *variable_symbol_table, *function_definition_symbol_table,
        *function_declaration_symbol_table, *structure_symbol_table;
 
+int var_no_counter = 1;
 struct ir_code *translate_Program(struct syntax_node *root);
 struct ir_code *translate_ExtDefList(struct syntax_node *root);
 struct ir_code *translate_ExtDef(struct syntax_node *root);
@@ -28,10 +29,14 @@ struct ir_code *translate_DecList(struct syntax_node *root);
 struct ir_code *translate_Dec(struct syntax_node *root);
 struct ir_code *translate_VarDec(struct syntax_node *root, struct operand **op_param);
 struct ir_code *translate_Exp(struct syntax_node *root, struct operand **op_param);
+struct ir_code * translate_Stmt(struct syntax_node *root);
+struct ir_code *translate_Cond(struct syntax_node *root, 
+        struct operand *label_true, struct operand *label_false);
 
 void ir_error(int line_no, char *msg);
 int get_variable_var_no(char *name);
-struct ir_code *concat_code(struct ir_code *code1, struct ir_code *code2);
+struct ir_code *concat_codes(int argc, ...);
+struct operand *create_new_label();
 struct operand *create_operand(int kind, ...);
 struct ir_code *create_ir_code(int kind, int argc, ...);
 void print_ir_code(struct ir_code *code);
@@ -59,7 +64,7 @@ struct ir_code *translate_ExtDefList(struct syntax_node *root) {
         // ExtDefList : ExtDef ExtDefList
         struct ir_code *code1 = translate_ExtDef(child_1(root));
         struct ir_code *code2 = translate_ExtDefList(child_2(root));
-        code1 = concat_code(code1, code2);
+        code1 = concat_codes(2, code1, code2);
         return code1;
     }
     return NULL;
@@ -78,7 +83,7 @@ struct ir_code *translate_ExtDef(struct syntax_node *root) {
             // we get the function signature
             // now we generate code for function name and params
             struct ir_code * code2 = translate_CompSt(child_3(root));
-            code1 = concat_code(code1, code2);
+            code1 = concat_codes(2, code1, code2);
             return code1;
         }
         else {
@@ -122,7 +127,7 @@ struct ir_code *translate_FunDec(struct syntax_node *root) {
         // FunDec : ID LP VarList RP
         // this add parameters to the inner most scope
         struct ir_code *code2 = translate_VarList(child_3(root));
-        code1 = concat_code(code1, code2);
+        code1 = concat_codes(2, code1, code2);
     }
     else {
         // FunDec : ID LP RP
@@ -135,7 +140,7 @@ struct ir_code *translate_VarList(struct syntax_node *root) {
     if(num_child(root) > 1) {
         // VarList : ParamDec COMMA VarList
         struct ir_code *code2 = translate_VarList(child_3(root));
-        code1 = concat_code(code1, code2);
+        code1 = concat_codes(2, code1, code2);
     }
     return code1;
 }
@@ -156,11 +161,124 @@ struct ir_code *translate_CompSt(struct syntax_node *root) {
     // CompSt : LC DefList StmtList RC
     struct ir_code *code1 = translate_DefList(child_2(root));
     struct ir_code *code2 = translate_StmtList(child_3(root));
-    return concat_code(code1, code2);
+    return concat_codes(2, code1, code2);
 }
 
 struct ir_code *translate_StmtList(struct syntax_node *root) {
+    if(!root->is_empty) {
+        // StmtList : Stmt StmtList
+        struct ir_code *code1 = translate_Stmt(child_1(root));
+        struct ir_code *code2 = translate_StmtList(child_2(root));
+        return concat_codes(2, code1, code2);
+    }
     return NULL;
+}
+
+struct ir_code * translate_Stmt(struct syntax_node *root) {
+    struct ir_code *code1 = NULL, *code2 = NULL, *code3 = NULL;
+    struct operand *op = NULL, *l1 = NULL, *l2 = NULL, *l3 = NULL;
+    switch(child_1(root)->node_type) {
+        case Exp:
+            // Stmt : Exp SEMI
+            code1 = translate_Exp(child_1(root), &op);
+            break;
+        case CompSt:
+            // Stmt : CompSt
+            code1 = translate_CompSt(child_1(root));
+            break;
+        case RETURN:
+            // Stmt : RETURN Exp SEMI
+            code1 = translate_Exp(child_2(root), &op);
+            code2 = create_ir_code(IR_RETURN, 1, op);
+            code1 = concat_codes(2, code1, code2);
+            break;
+        case IF:
+            // Stmt : IF LP Exp RP Stmt
+            // Stmt : IF LP Exp RP Stmt ELSE Stmt
+            l1 = create_new_label();
+            l2 = create_new_label();
+            code1 = translate_Cond(child_3(root), l1, l2);
+            code2 = translate_Stmt(child_5(root));
+            if(num_child(root) > 5) {
+                l3 = create_new_label();
+                code3 = translate_Stmt(child_7(root));
+                code1 = concat_codes(7, code1, create_ir_code(IR_LABEL, 1, l1),
+                        code2, create_ir_code(IR_GOTO, 1, l3),
+                        create_ir_code(IR_LABEL, 1, l2),
+                        code3, create_ir_code(IR_LABEL, 1, l3));
+            }
+            else {
+                code1 = concat_codes(4, code1, create_ir_code(IR_LABEL, 1, l1),
+                        code2, create_ir_code(IR_LABEL, 1, l2));
+            }
+            break;
+        case WHILE:
+            // Stmt : WHILE LP Exp RP Stmt
+            l1 = create_new_label();
+            l2 = create_new_label();
+            l3 = create_new_label();
+            code1 = translate_Cond(child_3(root), l2, l3);
+            code2 = translate_Stmt(child_5(root));
+            code1 = concat_codes(6, create_ir_code(IR_LABEL, 1, l1), 
+                    code1, create_ir_code(IR_LABEL, 1, l2),
+                    code2, create_ir_code(IR_GOTO, 1, l1),
+                    create_ir_code(IR_LABEL, 1, l3));
+            break;
+        default:
+            break;
+    }
+    return code1;
+}
+
+struct ir_code *translate_Cond(struct syntax_node *root, 
+        struct operand *label_true, struct operand *label_false) {
+    struct operand *op1, *op2, *relop;
+    struct ir_code *code1, *code2, *code3, *code4;
+    struct operand *label_1;
+    if(child_1(root)->node_type == Exp) {
+        switch(child_2(root)->node_type) {
+            case RELOP:
+                code1 = translate_Exp(child_1(root), &op1);
+                code2 = translate_Exp(child_3(root), &op2);
+                relop = create_operand(OP_NAME, child_2(root)->value.string_value);
+                code3 = create_ir_code(IR_IF, 4, op1, relop, op2, label_true);
+                code4 = create_ir_code(IR_GOTO, 1, label_false);
+                code1 = concat_codes(4, code1, code2, code3, code4);
+                return code1;
+                break;
+            case AND:
+                label_1 = create_new_label();
+                code1 = translate_Cond(child_1(root), label_1, label_false);
+                code2 = translate_Cond(child_3(root), label_true, label_false);
+                code3 = create_ir_code(IR_LABEL, 1, label_1);
+                code1 = concat_codes(3, code1, code3, code2);
+                return code1;
+                break;
+            case OR:
+                label_1 = create_new_label();
+                code1 = translate_Cond(child_1(root), label_true, label_1);
+                code2 = translate_Cond(child_3(root), label_true, label_false);
+                code3 = create_ir_code(IR_LABEL, 1, label_1);
+                code1 = concat_codes(3, code1, code3, code2);
+                return code1;
+                break;
+            default:
+                break;
+        }
+    }
+
+    if(child_1(root)->node_type == NOT) {
+        return translate_Cond(child_2(root), label_false, label_true);
+    }
+    else {
+        code1 = translate_Exp(root, &op1);
+        op2 = create_operand(OP_CONSTANT, 0);
+        relop = create_operand(OP_NAME, "!=");
+        code2 = create_ir_code(IR_IF, 4, op1, relop, op2, label_true);
+        code3 = create_ir_code(IR_GOTO, 1, label_false);
+        code1 = concat_codes(3, code1, code2, code3);
+        return code1;
+    }
 }
 
 struct ir_code *translate_DefList(struct syntax_node *root) {
@@ -168,7 +286,7 @@ struct ir_code *translate_DefList(struct syntax_node *root) {
         // ExtDefList : ExtDef ExtDefList
         struct ir_code *code1 = translate_Def(child_1(root));
         struct ir_code *code2 = translate_DefList(child_2(root));
-        return concat_code(code1, code2);
+        return concat_codes(2, code1, code2);
     }
     return NULL;
 }
@@ -186,7 +304,7 @@ struct ir_code *translate_DecList(struct syntax_node *root) {
     if(child_1(root)->next) {
         // DecList : Dec COMMA DecList
         struct ir_code *code2 = translate_DecList(child_3(root));
-        code1 = concat_code(code1, code2);
+        code1 = concat_codes(2, code1, code2);
     }
     return code1;
 }
@@ -202,7 +320,7 @@ struct ir_code *translate_Dec(struct syntax_node *root) {
         // so this must be assignment between basic types
         struct ir_code *code2 = translate_Exp(child_3(root), &op2);
         struct ir_code *code3 = create_ir_code(IR_ASSIGN, 2, op1, op2);
-        code1 = concat_code(concat_code(code1, code2), code3);
+        code1 = concat_codes(3, code1, code2, code3);
     }
     return code1;
 }
@@ -239,6 +357,8 @@ struct ir_code *translate_VarDec(struct syntax_node *root, struct operand **op) 
 }
 
 struct ir_code *translate_Exp(struct syntax_node *root, struct operand **op) {
+    struct operand *op1 = NULL, *op2 = NULL, *r = NULL, *label1, *label2;
+    struct ir_code *code1 = NULL, *code2 = NULL, *code3 = NULL, *code4 = NULL, *code5 = NULL;
     switch(child_1(root)->node_type) {
         case Exp:
             switch(child_2(root)->node_type) {
@@ -246,26 +366,39 @@ struct ir_code *translate_Exp(struct syntax_node *root, struct operand **op) {
                 case MINUS:
                 case STAR:
                 case DIV:
-                case RELOP:
-                    /* Exp arithmetic/comparison operator Exp
-                     * Exp must be of basic type
-                     *
-                     * Exp : Exp PLUS Exp
-                     * Exp : Exp MINUS Exp
-                     * Exp : Exp STAR Exp
-                     * Exp : Exp DIV Exp
-                     * Exp : Exp RELOP Exp
-                     */
+                    code1 = translate_Exp(child_1(root), &op1);
+                    code2 = translate_Exp(child_3(root), &op2);
+                    r = create_operand(OP_VARIABLE, var_no_counter++);
+                    code3 = create_ir_code(IR_ARITHMETIC, 4, r, 
+                            create_operand(OP_NAME, child_2(root)->value.string_value), 
+                            op1, op2);
+                    code1 = concat_codes(3, code1, code2, code3);
                     break;
+                case RELOP:
                 case AND:
                 case OR:
                     /*
                      * Exp : Exp AND Exp
                      * Exp : Exp OR Exp
                      */
+                    label1 = create_new_label();
+                    label2 = create_new_label();
+                    r = create_operand(OP_VARIABLE, var_no_counter++);
+                    code1 = create_ir_code(IR_ASSIGN, 2, r, create_operand(OP_CONSTANT, 0));
+                    code2 = translate_Cond(root, label1, label2);
+                    code3 = create_ir_code(IR_LABEL, 1, label1);
+                    code4 = create_ir_code(IR_ASSIGN, 2, r, create_operand(OP_CONSTANT, 1));
+                    code5 = create_ir_code(IR_LABEL, 1, label2);
+                    code1 = concat_codes(5, code1, code2, code3, code4, code5);
                     break;
                 case ASSIGNOP:
                     // Exp : Exp ASSIGNOP Exp
+                    code1 = translate_Exp(child_1(root), &op1);
+                    code2 = translate_Exp(child_3(root), &op2);
+                    r = create_operand(OP_VARIABLE, var_no_counter++);
+                    code3 = create_ir_code(IR_ASSIGN, 2, op1, op2);
+                    code4 = create_ir_code(IR_ASSIGN, 2, r, op1);
+                    code1 = concat_codes(4, code1, code2, code3, code4);
                     break;
                 case LB:
                     // array
@@ -283,34 +416,51 @@ struct ir_code *translate_Exp(struct syntax_node *root, struct operand **op) {
             // Exp : LP Exp RP
             break;
         case MINUS:
-            // Exp : NOT Exp
+            // Exp : MINUS Exp
+            code1 = translate_Exp(child_2(root), &op1);
+            r = create_operand(OP_VARIABLE, var_no_counter++);
+            code2 = create_ir_code(IR_ARITHMETIC, 4, r, 
+                    create_operand(OP_NAME, "-"), 
+                    create_operand(OP_CONSTANT, 0), op1);
+            code1 = concat_codes(2, code1, code2);
             break;
         case NOT:
             // Exp : NOT Exp
+            label1 = create_new_label();
+            label2 = create_new_label();
+            r = create_operand(OP_VARIABLE, var_no_counter++);
+            code1 = create_ir_code(IR_ASSIGN, 2, r, create_operand(OP_CONSTANT, 0));
+            code2 = translate_Cond(root, label1, label2);
+            code3 = create_ir_code(IR_LABEL, 1, label1);
+            code4 = create_ir_code(IR_ASSIGN, 2, r, create_operand(OP_CONSTANT, 1));
+            code5 = create_ir_code(IR_LABEL, 1, label2);
+            code1 = concat_codes(5, code1, code2, code3, code4, code5);
             break;
         case ID:
             if(num_child(root) > 1) {
                 // function call
             }
             else {
-                /* simply a variable
-                 * we look it up in the variable_symbol_table
-                 */
+                // simply a variable
+                // we look it up in the variable_symbol_table
+                r = create_operand(OP_VARIABLE, 
+                        get_variable_var_no(child_1(root)->value.string_value));
             }
             break;
         case INT:
             // Exp : INT
-            *op = create_operand(OP_CONSTANT, child_1(root)->value.int_value);
+            r = create_operand(OP_CONSTANT, child_1(root)->value.int_value);
             break;
         case FLOAT:
             // Exp : FLOAT
-            *op = create_operand(OP_CONSTANT, child_1(root)->value.float_value);
+            r = create_operand(OP_CONSTANT, child_1(root)->value.float_value);
             break;
         default:
             break;
     }
     // No code
-    return NULL;
+    *op = r;
+    return code1;
 }
 
 void ir_error(int line_no, char *msg) {
@@ -318,7 +468,6 @@ void ir_error(int line_no, char *msg) {
     generate_ir_successful = 0;
 }
 
-int var_no_counter = 1;
 
 int get_variable_var_no(char *name) {
     struct variable_symbol_table_entry *entry =
@@ -347,6 +496,18 @@ struct ir_code *concat_code(struct ir_code *code1, struct ir_code *code2) {
     curr->next = code2;
     code2->prev = curr;
     return code1;
+}
+
+struct ir_code *concat_codes(int argc, ...) {
+    va_list args;
+    va_start(args, argc);
+    struct ir_code *head = NULL, *curr = NULL;
+    for(int i = 0; i < argc; i++) {
+        curr = va_arg(args, struct ir_code *);
+        head = concat_code(head, curr);
+    }
+    va_end(args);
+    return head;
 }
 
 struct operand *create_operand(int kind, ...) {
@@ -401,9 +562,10 @@ char *get_operand_name(struct operand *op) {
             return Asprintf("*t%d", op->u.var_no);
             break;
         case OP_NAME:
-            return Asprintf("s", op->u.name);
+            return Asprintf("%s", op->u.name);
             break;
         default:
+            app_error("Unknown type of operand");
             return NULL;
             break;
     }
@@ -426,7 +588,38 @@ void print_ir_code(struct ir_code *code) {
             printf("DEC %s [%d]\n", get_operand_name(code->op[0]), 
                     code->op[1]->u.value);
             break;
+        case IR_ARITHMETIC:
+            // the first operand is the dst operand
+            // the second operand is the operator
+            // the third operand is the "real first operand"
+            // the forth operand is the "real second operand"
+            printf("%s := %s %s %s\n", get_operand_name(code->op[0]), 
+                    get_operand_name(code->op[2]), 
+                    get_operand_name(code->op[1]), 
+                    get_operand_name(code->op[3]));
+            break;
+        case IR_LABEL:
+            printf("LABEL %s :\n", get_operand_name(code->op[0]));
+            break;
+        case IR_GOTO:
+            printf("GOTO %s\n", get_operand_name(code->op[0]));
+            break;
+        case IR_RETURN:
+            printf("RETURN %s\n", get_operand_name(code->op[0]));
+            break;
+        case IR_IF:
+            printf("IF %s %s %s GOTO %s\n", get_operand_name(code->op[0]),
+                    get_operand_name(code->op[1]), 
+                    get_operand_name(code->op[2]), 
+                    get_operand_name(code->op[3]));
+            break;
         default:
+            app_error("Unknown type of ir code");
             break;
     }
+}
+
+int label_counter = 1;
+struct operand *create_new_label() {
+    return create_operand(OP_NAME, Asprintf("label%d", label_counter++));
 }
