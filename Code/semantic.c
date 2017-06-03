@@ -126,6 +126,27 @@ int check_semantics(struct syntax_node *root) {
         create_hash_table(HASH_TABLE_SIZE, hash_structure, compare_structure);
     variable_scopes = create_cstack(MAX_NESTED_SCOPES);
     scope_types = create_cstack(MAX_NESTED_SCOPES);
+    // lab3 generate ir: insert read and write into function table entry in advance
+    //
+    struct semantic_type *integer_type = Calloc(1, sizeof(struct semantic_type));
+    integer_type->kind = BASIC;
+    integer_type->u.basic = INT;
+
+    struct function_symbol_table_entry *read = Calloc(1, 
+            sizeof(struct function_symbol_table_entry));
+    read->name = Strdup("read");
+    read->argc = 0;
+    read->return_type = integer_type;
+    hash_table_insert(function_definition_symbol_table, read);
+
+    struct function_symbol_table_entry *write = Calloc(1, 
+            sizeof(struct function_symbol_table_entry));
+    write->name = Strdup("write");
+    write->argc = 1;
+    write->args = Calloc(1, sizeof(struct semantic_type *));
+    write->args[0] = integer_type;
+    hash_table_insert(function_definition_symbol_table, write);
+
     handle_Program(root);
     return is_semantics_correct;
 }

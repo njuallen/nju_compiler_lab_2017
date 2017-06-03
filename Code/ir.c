@@ -32,6 +32,7 @@ struct ir_code *translate_Exp(struct syntax_node *root, struct operand **op_para
 struct ir_code * translate_Stmt(struct syntax_node *root);
 struct ir_code *translate_Cond(struct syntax_node *root, 
         struct operand *label_true, struct operand *label_false);
+struct ir_code *translate_Args(struct syntax_node *root, struct ir_code **exp_code);
 
 void ir_error(int line_no, char *msg);
 int get_variable_var_no(char *name);
@@ -357,8 +358,9 @@ struct ir_code *translate_VarDec(struct syntax_node *root, struct operand **op) 
 }
 
 struct ir_code *translate_Exp(struct syntax_node *root, struct operand **op) {
-    struct operand *op1 = NULL, *op2 = NULL, *r = NULL, *label1, *label2;
+    struct operand *op1 = NULL, *op2 = NULL, *r = NULL, *label1, *label2, *t1, *t2;
     struct ir_code *code1 = NULL, *code2 = NULL, *code3 = NULL, *code4 = NULL, *code5 = NULL;
+    char *function_name = NULL;
     switch(child_1(root)->node_type) {
         case Exp:
             switch(child_2(root)->node_type) {
@@ -403,6 +405,31 @@ struct ir_code *translate_Exp(struct syntax_node *root, struct operand **op) {
                 case LB:
                     // array
                     // Exp : Exp LB Exp RB
+                    // op1 should be the base address of the array
+                    code1 = translate_Exp(child_1(root), &op1);
+                    // op2 is the index
+                    code2 = translate_Exp(child_3(root), &op2);
+                    // t2 stores the address of the element
+                    // but it should be of variable
+                    // or we can not assign value to it
+                    t2 = create_operand(OP_VARIABLE, var_no_counter++);
+                    t1 = create_operand(OP_VARIABLE, var_no_counter++);
+                    // size of array element is always 4
+                    code3 = create_ir_code(IR_ARITHMETIC, 4, op1, op2);
+                    // t1 = op2 * 4
+                    code3 = create_ir_code(IR_ARITHMETIC, 4, t1, 
+                            create_operand(OP_NAME, "*"), 
+                            op2, create_operand(OP_CONSTANT, 4));
+                    // t2 = op1 + t1
+                    code4 = create_ir_code(IR_ARITHMETIC, 4, t2, 
+                            create_operand(OP_NAME, "+"), 
+                            op1, t1);
+                    // r is of type OP_ADDRESS
+                    // but it shares the same virtual register with t2
+                    r = Calloc(1, sizeof(struct operand));
+                    r->kind = OP_ADDRESS;
+                    r->u.var_no = t2->u.var_no;
+                    code1 = concat_codes(4, code1, code2, code3, code4);
                     break;
                 case DOT:
                     // structure
@@ -414,6 +441,7 @@ struct ir_code *translate_Exp(struct syntax_node *root, struct operand **op) {
             break;
         case LP:
             // Exp : LP Exp RP
+            code1 = translate_Exp(child_2(root), &r);
             break;
         case MINUS:
             // Exp : MINUS Exp
@@ -438,7 +466,26 @@ struct ir_code *translate_Exp(struct syntax_node *root, struct operand **op) {
             break;
         case ID:
             if(num_child(root) > 1) {
+                // Exp : ID LP Args RP
                 // function call
+                function_name = child_1(root)->value.string_value;
+                if(!strcmp(function_name, "read")) {
+                    r = create_operand(OP_VARIABLE, var_no_counter++);
+                    code1 = create_ir_code(IR_READ, 1, r); 
+                }
+                else if(!strcmp(function_name, "write")) {
+                    // since write only accept one arguments
+                    // so Args must produce exp
+                    code1 = translate_Exp(child_1(child_3(root)), &op1);
+                    code1 = create_ir_code(IR_WRITE, 1, op1); 
+                }
+                else {
+                    code1 = translate_Args(child_3(root), &code2);
+                    r = create_operand(OP_VARIABLE, var_no_counter++);
+                    code3 = create_ir_code(IR_CALL, 2, r, 
+                            create_operand(OP_NAME, child_1(root)->value.string_value));
+                    code1 = concat_codes(3, code2, code1, code3);
+                }
             }
             else {
                 // simply a variable
@@ -460,6 +507,29 @@ struct ir_code *translate_Exp(struct syntax_node *root, struct operand **op) {
     }
     // No code
     *op = r;
+    return code1;
+}
+
+// returning value: code for parameter passing
+// exp_code: code for parameter expression calculation
+struct ir_code *translate_Args(struct syntax_node *root, struct ir_code **exp_code) {
+    struct ir_code *code1 = NULL, *code2 = NULL, *code3 = NULL, *exp = NULL;
+    struct operand *op;
+    if(num_child(root) > 1) {
+        // Args : Exp COMMA Args
+        // 此处代码要分成两部分，分别是计算实参和压入实参的代码
+        code1 = translate_Args(child_3(root), &exp);
+        code2 = translate_Exp(child_1(root), &op);
+        code3 = create_ir_code(IR_PARAM, 1, op);
+        // 压栈要按照逆序进行
+        code1 = concat_codes(2, code1, code2);
+        *exp_code = concat_codes(2, exp, code3); 
+    }
+    else {
+        // Args : Exp
+        *exp_code = translate_Exp(child_1(root), &op);
+        code1 = create_ir_code(IR_PARAM, 1, op);
+    }
     return code1;
 }
 
@@ -612,6 +682,16 @@ void print_ir_code(struct ir_code *code) {
                     get_operand_name(code->op[1]), 
                     get_operand_name(code->op[2]), 
                     get_operand_name(code->op[3]));
+            break;
+        case IR_CALL:
+            printf("%s := CALL %s\n", get_operand_name(code->op[0]), 
+                    get_operand_name(code->op[1]));
+            break;
+        case IR_READ:
+            printf("READ %s\n", get_operand_name(code->op[0]));
+            break;
+        case IR_WRITE:
+            printf("WRITE %s\n", get_operand_name(code->op[0]));
             break;
         default:
             app_error("Unknown type of ir code");
