@@ -407,6 +407,7 @@ struct ir_code *translate_Exp(struct syntax_node *root, struct operand **op) {
                     // Exp : Exp LB Exp RB
                     // op1 should be the base address of the array
                     code1 = translate_Exp(child_1(root), &op1);
+                    op1->kind = OP_GET_ADDRESS;
                     // op2 is the index
                     code2 = translate_Exp(child_3(root), &op2);
                     // t2 stores the address of the element
@@ -523,8 +524,8 @@ struct ir_code *translate_Args(struct syntax_node *root, struct ir_code **exp_co
         code2 = translate_Exp(child_1(root), &op);
         code3 = create_ir_code(IR_ARG, 1, op);
         // 压栈要按照逆序进行
-        code1 = concat_codes(2, code1, code2);
-        *exp_code = concat_codes(2, exp, code3); 
+        code1 = concat_codes(2, code1, code3);
+        *exp_code = concat_codes(2, exp, code2); 
     }
     else {
         // Args : Exp
@@ -538,7 +539,6 @@ void ir_error(int line_no, char *msg) {
     printf("IR generation error at Line %d: %s.\n", line_no, msg);
     generate_ir_successful = 0;
 }
-
 
 int get_variable_var_no(char *name) {
     struct variable_symbol_table_entry *entry =
@@ -632,6 +632,9 @@ char *get_operand_name(struct operand *op) {
         case OP_ADDRESS:
             return Asprintf("*t%d", op->u.var_no);
             break;
+        case OP_GET_ADDRESS:
+            return Asprintf("&t%d", op->u.var_no);
+            break;
         case OP_NAME:
             return Asprintf("%s", op->u.name);
             break;
@@ -660,7 +663,7 @@ void print_ir_code(struct ir_code *code) {
                     get_operand_name(code->op[1]));
             break;
         case IR_DEC:
-            printf("DEC %s [%d]\n", get_operand_name(code->op[0]), 
+            printf("DEC %s %d\n", get_operand_name(code->op[0]), 
                     code->op[1]->u.value);
             break;
         case IR_ARITHMETIC:

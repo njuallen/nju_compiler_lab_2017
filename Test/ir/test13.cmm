@@ -1,0 +1,14 @@
+int main() {
+    int i = 1, sum = 0;
+    while(i <= 100) {
+        sum = sum + i;
+        i = i + 1;
+    }
+
+    if(!(sum == 5050)) {
+        write(1);
+        return 1;
+    }
+    write(0);
+    return 0;
+}

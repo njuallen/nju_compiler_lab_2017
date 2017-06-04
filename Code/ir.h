@@ -10,7 +10,7 @@
 // OP_CONSTANT -> value
 // OP_NAME -> name
 struct operand {
-    enum { OP_VARIABLE, OP_CONSTANT, OP_ADDRESS, OP_NAME} kind;
+    enum { OP_VARIABLE, OP_CONSTANT, OP_ADDRESS, OP_GET_ADDRESS, OP_NAME} kind;
     union {
         int var_no;
         int value;
