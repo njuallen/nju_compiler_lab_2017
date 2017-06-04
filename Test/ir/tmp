@@ -1,8 +1,0 @@
-test_data[0] = 0;
-test_data[1] = 1;
-test_data[2] = 2;
-test_data[3] = 0x7fffffff;
-test_data[4] = 0x80000000;
-test_data[5] = 0x80000001;
-test_data[6] = 0xfffffffe;
-test_data[7] = 0xffffffff;
