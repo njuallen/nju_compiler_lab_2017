@@ -477,7 +477,8 @@ struct ir_code *translate_Exp(struct syntax_node *root, struct operand **op) {
                     // since write only accept one arguments
                     // so Args must produce exp
                     code1 = translate_Exp(child_1(child_3(root)), &op1);
-                    code1 = create_ir_code(IR_WRITE, 1, op1); 
+                    code2 = create_ir_code(IR_WRITE, 1, op1); 
+                    code1 = concat_codes(2, code1, code2);
                 }
                 else {
                     code1 = translate_Args(child_3(root), &code2);
@@ -520,7 +521,7 @@ struct ir_code *translate_Args(struct syntax_node *root, struct ir_code **exp_co
         // 此处代码要分成两部分，分别是计算实参和压入实参的代码
         code1 = translate_Args(child_3(root), &exp);
         code2 = translate_Exp(child_1(root), &op);
-        code3 = create_ir_code(IR_PARAM, 1, op);
+        code3 = create_ir_code(IR_ARG, 1, op);
         // 压栈要按照逆序进行
         code1 = concat_codes(2, code1, code2);
         *exp_code = concat_codes(2, exp, code3); 
@@ -528,7 +529,7 @@ struct ir_code *translate_Args(struct syntax_node *root, struct ir_code **exp_co
     else {
         // Args : Exp
         *exp_code = translate_Exp(child_1(root), &op);
-        code1 = create_ir_code(IR_PARAM, 1, op);
+        code1 = create_ir_code(IR_ARG, 1, op);
     }
     return code1;
 }
@@ -649,6 +650,10 @@ void print_ir_code(struct ir_code *code) {
         case IR_PARAM:
             // our variable name starts with t
             printf("PARAM %s\n", get_operand_name(code->op[0]));
+            break;
+        case IR_ARG:
+            // our variable name starts with t
+            printf("ARG %s\n", get_operand_name(code->op[0]));
             break;
         case IR_ASSIGN:
             printf("%s := %s\n", get_operand_name(code->op[0]), 
