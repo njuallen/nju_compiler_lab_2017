@@ -6,8 +6,10 @@ ADT = adt.c adt.h
 
 all: parser adt
 
-parser: syntax.tab.c semantic.c semantic.h ir.c ir.h main.c syntax.h $(COMMON) $(adt)
-	$(CC) $(CFLAGS) syntax.tab.c semantic.c ir.c main.c adt.c csapp.c -lfl -ly -o parser
+parser: syntax.tab.c semantic.c semantic.h ir.c ir.h main.c syntax.h mips32.h mips32.o $(COMMON) $(adt)
+	$(CC) $(CFLAGS) syntax.tab.c semantic.c ir.c main.c adt.c csapp.c mips32.o -lfl -ly -lstdc++ -o parser
+mips32.o:mips32.cpp mips32.h
+	g++ -DLINKAGE_CPP -c -std=c++0x -g -Wall -g -O0 mips32.cpp -o mips32.o
 lex.yy.c: lex.l
 	flex lex.l
 syntax.tab.c: syntax.y lex.yy.c
@@ -22,7 +24,7 @@ test: parser
 test-%:
 	@python2.7 test_parser.py ../Test/semantics/ $@
 clean:
-	@rm -rf lex.yy.c syntax.tab.c syntax.tab.h parser adt 2>/dev/null >/dev/null
+	@rm -rf lex.yy.c syntax.tab.c syntax.tab.h parser adt mips32.o 2>/dev/null >/dev/null
 	@rm -rf ../Test/semantics/*.out ../Test/semantics/*.correct
 	@chmod -w ../Test/semantics/*.cmm ../Test/semantics/*.answer
 	@chmod -w ../Test/syntax/*.cmm ../Test/syntax/*.answer

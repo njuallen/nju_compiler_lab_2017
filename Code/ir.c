@@ -43,16 +43,13 @@ struct ir_code *create_ir_code(int kind, int argc, ...);
 void print_ir_code(struct ir_code *code);
 char *get_operand_name(struct operand *op);
 
-void generate_ir(struct syntax_node *root) {
+struct ir_code *generate_ir(struct syntax_node *root) {
     // generate ir
     struct ir_code *code = translate_Program(root);
-    if(generate_ir_successful) {
-        // output ir
-        while(code) {
-            print_ir_code(code);
-            code = code->next;
-        }
-    }
+    if(generate_ir_successful)
+        return code;
+    else
+        return NULL;
 }
 
 struct ir_code *translate_Program(struct syntax_node *root) {

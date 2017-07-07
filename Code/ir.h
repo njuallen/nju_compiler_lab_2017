@@ -33,5 +33,5 @@ struct ir_code {
     struct ir_code *prev, *next;
 };
 
-void generate_ir(struct syntax_node *root);
+struct ir_code *generate_ir(struct syntax_node *root);
 #endif
