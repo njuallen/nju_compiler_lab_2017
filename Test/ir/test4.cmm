@@ -7,8 +7,8 @@ int fib(int n) {
 }
 
 int main() {
-    int n;
-    n = read();
-    write(fib(10));
+    int a;
+    a = read();
+    write(fib(a));
     return 0;
 }

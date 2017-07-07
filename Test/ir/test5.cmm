@@ -1,0 +1,43 @@
+// test arithmetic
+int add(int a, int b) {
+	int c = a + b;
+	return c;
+}
+
+int main() {
+    int test_data[8];
+    int ans[64];
+    int i, j, ans_idx = 0;
+
+    test_data[0] = 0;
+    test_data[1] = 1;
+    test_data[2] = 2;
+    test_data[3] = 3;
+    test_data[4] = -3;
+    test_data[5] = -2;
+    test_data[6] = -1;
+    test_data[7] = 0;
+
+    ans[0] = 0;
+    ans[1] = 1;
+    ans[2] = 2;
+    ans[3] = 3;
+    ans[4] = -3;
+    ans[5] = -2;
+    ans[6] = -1;
+    ans[7] = 0;
+    i = 0;
+    while(i < 1) {
+        j = 0;
+        while(j < 8) {
+            if(!(add(test_data[i], test_data[j]) == ans[ans_idx])) {
+                return 1;
+            }
+            j = j + 1;
+            ans_idx = ans_idx + 1;
+        }
+        i = i + 1;
+    }
+    write(0);
+    return 0;
+}
