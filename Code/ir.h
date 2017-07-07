@@ -1,5 +1,7 @@
 #ifndef IR_H
 #define IR_H
+#include <stdio.h>
+#include "linkage.h"
 
 #define MAX_OPERAND 4
 
@@ -18,20 +20,25 @@ struct operand {
     } u;
 };
 
+enum { 
+    IR_LABEL, IR_FUNCTION, IR_ASSIGN,
+    IR_ARITHMETIC, 
+    IR_ADDRESS,
+    IR_GOTO, IR_IF, IR_RETURN, IR_DEC,
+    IR_ARG, IR_CALL, IR_PARAM,
+    IR_READ, IR_WRITE
+};
+
 struct ir_code {
-    enum { 
-        IR_LABEL, IR_FUNCTION, IR_ASSIGN,
-        IR_ARITHMETIC, 
-        IR_ADDRESS,
-        IR_GOTO, IR_IF, IR_RETURN, IR_DEC,
-        IR_ARG, IR_CALL, IR_PARAM,
-        IR_READ, IR_WRITE
-    } kind;
+    int kind;
     // we will have up to three operands
     // some may not be used
     struct operand *op[MAX_OPERAND];
     struct ir_code *prev, *next;
 };
 
-struct ir_code *generate_ir(struct syntax_node *root);
+LINKAGE struct ir_code *generate_ir(struct syntax_node *root);
+LINKAGE void print_ir_codes(struct ir_code *code, FILE *f);
+LINKAGE struct ir_code *delete_code(struct ir_code *code);
+LINKAGE char *get_operand_name(struct operand *op);
 #endif

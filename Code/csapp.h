@@ -6,29 +6,30 @@
 #include <stdarg.h>
 #include <time.h>
 #include <errno.h>
+#include "linkage.h"
 
 /* Our own error-handling functions */
-void unix_error(const char *msg);
-void posix_error(int code, const char *msg);
-void app_error(const char *msg);
+LINKAGE void unix_error(const char *msg);
+LINKAGE void posix_error(int code, const char *msg);
+LINKAGE void app_error(const char *msg);
 
 /* Standard I/O wrappers */
-void Fclose(FILE *fp);
-FILE *Fdopen(int fd, const char *type);
-char *Fgets(char *ptr, int n, FILE *stream);
-FILE *Fopen(const char *filename, const char *mode);
-void Fputs(const char *ptr, FILE *stream);
-size_t Fread(void *ptr, size_t size, size_t nmemb, FILE *stream);
-void Fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
-void Fseek(FILE *stream, long offset, int whence);
+LINKAGE void Fclose(FILE *fp);
+LINKAGE FILE *Fdopen(int fd, const char *type);
+LINKAGE char *Fgets(char *ptr, int n, FILE *stream);
+LINKAGE FILE *Fopen(const char *filename, const char *mode);
+LINKAGE void Fputs(const char *ptr, FILE *stream);
+LINKAGE size_t Fread(void *ptr, size_t size, size_t nmemb, FILE *stream);
+LINKAGE void Fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
+LINKAGE void Fseek(FILE *stream, long offset, int whence);
 
 /* Dynamic storage allocation wrappers */
-void *Malloc(size_t size);
-void *Realloc(void *ptr, size_t size);
-void *Calloc(size_t nmemb, size_t size);
-void Free(void *ptr);
+LINKAGE void *Malloc(size_t size);
+LINKAGE void *Realloc(void *ptr, size_t size);
+LINKAGE void *Calloc(size_t nmemb, size_t size);
+LINKAGE void Free(void *ptr);
 
 /* string wrappers */
-char *Strdup(const char *s);
-char *Asprintf(const char *fmt, ...);
+LINKAGE char *Strdup(const char *s);
+LINKAGE char *Asprintf(const char *fmt, ...);
 #endif

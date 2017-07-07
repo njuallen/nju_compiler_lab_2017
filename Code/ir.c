@@ -40,7 +40,7 @@ struct ir_code *concat_codes(int argc, ...);
 struct operand *create_new_label();
 struct operand *create_operand(int kind, ...);
 struct ir_code *create_ir_code(int kind, int argc, ...);
-void print_ir_code(struct ir_code *code);
+void print_ir_code(struct ir_code *code, FILE *f);
 char *get_operand_name(struct operand *op);
 
 struct ir_code *generate_ir(struct syntax_node *root) {
@@ -50,6 +50,13 @@ struct ir_code *generate_ir(struct syntax_node *root) {
         return code;
     else
         return NULL;
+}
+
+void print_ir_codes(struct ir_code *code, FILE *f) {
+    while(code) {
+        print_ir_code(code, f);
+        code = code->next;
+    }
 }
 
 struct ir_code *translate_Program(struct syntax_node *root) {
@@ -551,6 +558,17 @@ int get_variable_var_no(char *name) {
     return old->var_no;
 }
 
+// 将当前指向的code从ir_code链表中删除
+// 当前的code并没有被free掉
+// 并返回下一个code
+struct ir_code *delete_code(struct ir_code *code) {
+    if(code->prev)
+        code->prev->next = code->next;
+    if(code->next)
+        code->next->prev = code->prev;
+    return code->next;
+}
+
 // 将链表1与链表2连接起来
 struct ir_code *concat_code(struct ir_code *code1, struct ir_code *code2) {
     if(!code1)
@@ -642,25 +660,25 @@ char *get_operand_name(struct operand *op) {
     }
 }
 
-void print_ir_code(struct ir_code *code) {
+void print_ir_code(struct ir_code *code, FILE *f) {
     switch(code->kind) {
         case IR_FUNCTION:
-            printf("FUNCTION %s :\n", get_operand_name(code->op[0]));
+            fprintf(f, "FUNCTION %s :\n", get_operand_name(code->op[0]));
             break;
         case IR_PARAM:
             // our variable name starts with t
-            printf("PARAM %s\n", get_operand_name(code->op[0]));
+            fprintf(f, "PARAM %s\n", get_operand_name(code->op[0]));
             break;
         case IR_ARG:
             // our variable name starts with t
-            printf("ARG %s\n", get_operand_name(code->op[0]));
+            fprintf(f, "ARG %s\n", get_operand_name(code->op[0]));
             break;
         case IR_ASSIGN:
-            printf("%s := %s\n", get_operand_name(code->op[0]), 
+            fprintf(f, "%s := %s\n", get_operand_name(code->op[0]), 
                     get_operand_name(code->op[1]));
             break;
         case IR_DEC:
-            printf("DEC %s %d\n", get_operand_name(code->op[0]), 
+            fprintf(f, "DEC %s %d\n", get_operand_name(code->op[0]), 
                     code->op[1]->u.value);
             break;
         case IR_ARITHMETIC:
@@ -668,35 +686,35 @@ void print_ir_code(struct ir_code *code) {
             // the second operand is the operator
             // the third operand is the "real first operand"
             // the forth operand is the "real second operand"
-            printf("%s := %s %s %s\n", get_operand_name(code->op[0]), 
+            fprintf(f, "%s := %s %s %s\n", get_operand_name(code->op[0]), 
                     get_operand_name(code->op[2]), 
                     get_operand_name(code->op[1]), 
                     get_operand_name(code->op[3]));
             break;
         case IR_LABEL:
-            printf("LABEL %s :\n", get_operand_name(code->op[0]));
+            fprintf(f, "LABEL %s :\n", get_operand_name(code->op[0]));
             break;
         case IR_GOTO:
-            printf("GOTO %s\n", get_operand_name(code->op[0]));
+            fprintf(f, "GOTO %s\n", get_operand_name(code->op[0]));
             break;
         case IR_RETURN:
-            printf("RETURN %s\n", get_operand_name(code->op[0]));
+            fprintf(f, "RETURN %s\n", get_operand_name(code->op[0]));
             break;
         case IR_IF:
-            printf("IF %s %s %s GOTO %s\n", get_operand_name(code->op[0]),
+            fprintf(f, "IF %s %s %s GOTO %s\n", get_operand_name(code->op[0]),
                     get_operand_name(code->op[1]), 
                     get_operand_name(code->op[2]), 
                     get_operand_name(code->op[3]));
             break;
         case IR_CALL:
-            printf("%s := CALL %s\n", get_operand_name(code->op[0]), 
+            fprintf(f, "%s := CALL %s\n", get_operand_name(code->op[0]), 
                     get_operand_name(code->op[1]));
             break;
         case IR_READ:
-            printf("READ %s\n", get_operand_name(code->op[0]));
+            fprintf(f, "READ %s\n", get_operand_name(code->op[0]));
             break;
         case IR_WRITE:
-            printf("WRITE %s\n", get_operand_name(code->op[0]));
+            fprintf(f, "WRITE %s\n", get_operand_name(code->op[0]));
             break;
         default:
             app_error("Unknown type of ir code");

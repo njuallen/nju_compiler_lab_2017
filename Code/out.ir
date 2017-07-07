@@ -1,0 +1,25 @@
+FUNCTION fib :
+PARAM t1
+IF t1 <= #1 GOTO label1
+GOTO label2
+LABEL label1 :
+RETURN #1
+GOTO label3
+LABEL label2 :
+t2 := t1 - #1
+ARG t2
+t3 := CALL fib
+t4 := t1 - #2
+ARG t4
+t5 := CALL fib
+t6 := t3 + t5
+RETURN t6
+LABEL label3 :
+FUNCTION main :
+READ t8
+t7 := t8
+t9 := t7
+ARG t7
+t10 := CALL fib
+WRITE t10
+RETURN #0
