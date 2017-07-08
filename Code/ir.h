@@ -11,8 +11,10 @@
 // OP_VARIABLE, OP_ADDRESS -> var_no
 // OP_CONSTANT -> value
 // OP_NAME -> name
+enum { OP_VARIABLE, OP_CONSTANT, OP_ADDRESS, OP_GET_ADDRESS, OP_NAME};
+
 struct operand {
-    enum { OP_VARIABLE, OP_CONSTANT, OP_ADDRESS, OP_GET_ADDRESS, OP_NAME} kind;
+    int kind;
     union {
         int var_no;
         int value;
@@ -20,13 +22,12 @@ struct operand {
     } u;
 };
 
-enum { 
-    IR_LABEL, IR_FUNCTION, IR_ASSIGN,
-    IR_ARITHMETIC, 
-    IR_ADDRESS,
-    IR_GOTO, IR_IF, IR_RETURN, IR_DEC,
-    IR_ARG, IR_CALL, IR_PARAM,
-    IR_READ, IR_WRITE
+enum {
+    IR_LABEL = 0, IR_FUNCTION, IR_ASSIGN,
+    IR_ARITHMETIC, IR_GOTO, IR_IF, 
+    IR_RETURN, IR_DEC, IR_ARG, 
+    IR_CALL, IR_PARAM, IR_READ, 
+    IR_WRITE
 };
 
 struct ir_code {
@@ -38,7 +39,9 @@ struct ir_code {
 };
 
 LINKAGE struct ir_code *generate_ir(struct syntax_node *root);
+LINKAGE void print_ir_code(struct ir_code *code, FILE *f);
 LINKAGE void print_ir_codes(struct ir_code *code, FILE *f);
 LINKAGE struct ir_code *delete_code(struct ir_code *code);
 LINKAGE char *get_operand_name(struct operand *op);
+LINKAGE struct operand *create_operand(int kind, ...);
 #endif

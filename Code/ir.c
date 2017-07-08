@@ -375,9 +375,9 @@ struct ir_code *translate_Exp(struct syntax_node *root, struct operand **op) {
                     code1 = translate_Exp(child_1(root), &op1);
                     code2 = translate_Exp(child_3(root), &op2);
                     r = create_operand(OP_VARIABLE, var_no_counter++);
-                    code3 = create_ir_code(IR_ARITHMETIC, 4, r, 
+                    code3 = create_ir_code(IR_ARITHMETIC, 4, r, op1, 
                             create_operand(OP_NAME, child_2(root)->value.string_value), 
-                            op1, op2);
+                            op2);
                     code1 = concat_codes(3, code1, code2, code3);
                     break;
                 case RELOP:
@@ -420,15 +420,14 @@ struct ir_code *translate_Exp(struct syntax_node *root, struct operand **op) {
                     t2 = create_operand(OP_VARIABLE, var_no_counter++);
                     t1 = create_operand(OP_VARIABLE, var_no_counter++);
                     // size of array element is always 4
-                    code3 = create_ir_code(IR_ARITHMETIC, 4, op1, op2);
                     // t1 = op2 * 4
-                    code3 = create_ir_code(IR_ARITHMETIC, 4, t1, 
+                    code3 = create_ir_code(IR_ARITHMETIC, 4, t1, op2, 
                             create_operand(OP_NAME, "*"), 
-                            op2, create_operand(OP_CONSTANT, 4));
+                            create_operand(OP_CONSTANT, 4));
                     // t2 = op1 + t1
-                    code4 = create_ir_code(IR_ARITHMETIC, 4, t2, 
+                    code4 = create_ir_code(IR_ARITHMETIC, 4, t2, op1, 
                             create_operand(OP_NAME, "+"), 
-                            op1, t1);
+                            t1);
                     // r is of type OP_ADDRESS
                     // but it shares the same virtual register with t2
                     r = Calloc(1, sizeof(struct operand));
@@ -453,8 +452,9 @@ struct ir_code *translate_Exp(struct syntax_node *root, struct operand **op) {
             code1 = translate_Exp(child_2(root), &op1);
             r = create_operand(OP_VARIABLE, var_no_counter++);
             code2 = create_ir_code(IR_ARITHMETIC, 4, r, 
+                    create_operand(OP_CONSTANT, 0), 
                     create_operand(OP_NAME, "-"), 
-                    create_operand(OP_CONSTANT, 0), op1);
+                    op1);
             code1 = concat_codes(2, code1, code2);
             break;
         case NOT:
@@ -636,90 +636,47 @@ struct ir_code *create_ir_code(int kind, int argc, ...) {
 }
 
 char *get_operand_name(struct operand *op) {
-    switch(op->kind) {
-        case OP_VARIABLE:
-            return Asprintf("t%d", op->u.var_no);
-            break;
-        case OP_CONSTANT:
-            // what if we encounter float constant?
-            return Asprintf("#%d", op->u.value);
-            break;
-        case OP_ADDRESS:
-            return Asprintf("*t%d", op->u.var_no);
-            break;
-        case OP_GET_ADDRESS:
-            return Asprintf("&t%d", op->u.var_no);
-            break;
-        case OP_NAME:
-            return Asprintf("%s", op->u.name);
-            break;
-        default:
-            app_error("Unknown type of operand");
-            return NULL;
-            break;
+    if(op) {
+        switch(op->kind) {
+            case OP_VARIABLE:
+                return Asprintf("t%d", op->u.var_no);
+                break;
+            case OP_CONSTANT:
+                // what if we encounter float constant?
+                return Asprintf("#%d", op->u.value);
+                break;
+            case OP_ADDRESS:
+                return Asprintf("*t%d", op->u.var_no);
+                break;
+            case OP_GET_ADDRESS:
+                return Asprintf("&t%d", op->u.var_no);
+                break;
+            case OP_NAME:
+                return Asprintf("%s", op->u.name);
+                break;
+            default:
+                app_error("Unknown type of operand");
+                return NULL;
+                break;
+        }
     }
+    else
+        return NULL;
 }
 
+char *ir_code_fmt[] = {
+    "LABEL %s :", "FUNCTION %s :", "%s := %s",
+    "%s := %s %s %s", "GOTO %s", "IF %s %s %s GOTO %s", 
+    "RETURN %s", "DEC %s %d", "ARG %s",
+    "%s := CALL %s", "PARAM %s", "READ %s", 
+    "WRITE %s"
+};
+
 void print_ir_code(struct ir_code *code, FILE *f) {
-    switch(code->kind) {
-        case IR_FUNCTION:
-            fprintf(f, "FUNCTION %s :\n", get_operand_name(code->op[0]));
-            break;
-        case IR_PARAM:
-            // our variable name starts with t
-            fprintf(f, "PARAM %s\n", get_operand_name(code->op[0]));
-            break;
-        case IR_ARG:
-            // our variable name starts with t
-            fprintf(f, "ARG %s\n", get_operand_name(code->op[0]));
-            break;
-        case IR_ASSIGN:
-            fprintf(f, "%s := %s\n", get_operand_name(code->op[0]), 
-                    get_operand_name(code->op[1]));
-            break;
-        case IR_DEC:
-            fprintf(f, "DEC %s %d\n", get_operand_name(code->op[0]), 
-                    code->op[1]->u.value);
-            break;
-        case IR_ARITHMETIC:
-            // the first operand is the dst operand
-            // the second operand is the operator
-            // the third operand is the "real first operand"
-            // the forth operand is the "real second operand"
-            fprintf(f, "%s := %s %s %s\n", get_operand_name(code->op[0]), 
-                    get_operand_name(code->op[2]), 
-                    get_operand_name(code->op[1]), 
-                    get_operand_name(code->op[3]));
-            break;
-        case IR_LABEL:
-            fprintf(f, "LABEL %s :\n", get_operand_name(code->op[0]));
-            break;
-        case IR_GOTO:
-            fprintf(f, "GOTO %s\n", get_operand_name(code->op[0]));
-            break;
-        case IR_RETURN:
-            fprintf(f, "RETURN %s\n", get_operand_name(code->op[0]));
-            break;
-        case IR_IF:
-            fprintf(f, "IF %s %s %s GOTO %s\n", get_operand_name(code->op[0]),
-                    get_operand_name(code->op[1]), 
-                    get_operand_name(code->op[2]), 
-                    get_operand_name(code->op[3]));
-            break;
-        case IR_CALL:
-            fprintf(f, "%s := CALL %s\n", get_operand_name(code->op[0]), 
-                    get_operand_name(code->op[1]));
-            break;
-        case IR_READ:
-            fprintf(f, "READ %s\n", get_operand_name(code->op[0]));
-            break;
-        case IR_WRITE:
-            fprintf(f, "WRITE %s\n", get_operand_name(code->op[0]));
-            break;
-        default:
-            app_error("Unknown type of ir code");
-            break;
-    }
+    fprintf(f, ir_code_fmt[code->kind], get_operand_name(code->op[0]),
+            get_operand_name(code->op[1]), get_operand_name(code->op[2]), 
+            get_operand_name(code->op[3]));
+    fprintf(f, "\n");
 }
 
 int label_counter = 1;
