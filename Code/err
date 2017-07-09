@@ -1,0 +1,37 @@
+mips32.cpp: In function ‘void epilogue(std::__cxx11::list<mips32_code*>&, std::__cxx11::list<mips32_code*>::iterator&)’:
+mips32.cpp:596:23: warning: comparison between signed and unsigned integer expressions [-Wsign-compare]
+     for(auto i = 0; i < callee_saved_variables.size(); i++)
+                       ^
+mips32.cpp: In function ‘void register_allocation()’:
+mips32.cpp:739:9: warning: unused variable ‘count’ [-Wunused-variable]
+     int count = 0;
+         ^
+syntax.tab.c: In function ‘yyparse’:
+syntax.tab.c:1422:16: warning: implicit declaration of function ‘yylex’ [-Wimplicit-function-declaration]
+       yychar = yylex ();
+                ^
+syntax.tab.c:2201:9: warning: implicit declaration of function ‘yyerror’ [-Wimplicit-function-declaration]
+         yyerror (yymsgp);
+         ^
+syntax.y: At top level:
+syntax.y:378:6: warning: conflicting types for ‘yyerror’
+ void yyerror(char *s) {
+      ^
+syntax.tab.c:2201:9: note: previous implicit declaration of ‘yyerror’ was here
+         yyerror (yymsgp);
+         ^
+In file included from syntax.y:371:0:
+lex.yy.c:1511:17: warning: ‘yyunput’ defined but not used [-Wunused-function]
+     static void yyunput (int c, char * yy_bp )
+                 ^
+lex.yy.c:1558:16: warning: ‘input’ defined but not used [-Wunused-function]
+     static int input  (void)
+                ^
+main.c: In function ‘main’:
+main.c:22:5: warning: implicit declaration of function ‘yyrestart’ [-Wimplicit-function-declaration]
+     yyrestart(f);
+     ^
+csapp.c: In function ‘Asprintf’:
+csapp.c:140:8: warning: implicit declaration of function ‘vasprintf’ [-Wimplicit-function-declaration]
+     if(vasprintf(&str, fmt, ap) == -1)
+        ^

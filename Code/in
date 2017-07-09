@@ -1,4 +1,0 @@
-load "final.s"
-breakpoint fib
-run
-s

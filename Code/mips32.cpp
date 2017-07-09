@@ -42,7 +42,7 @@ vector<function> functions;
 // 函数声明
 struct mips32_operand *create_mips32_operand(int kind, ...);
 struct mips32_code *create_mips32_code(int kind, int argc, ...);
-struct mips32_address *create_mips32_address(char *base, int bias);
+struct mips32_address *create_mips32_address(const char *base, int bias);
 void print_mips32_codes(list<mips32_code *> &l, FILE *f);
 struct mips32_operand *get_register_operand(struct operand *op, list<struct mips32_code *> &l);
 struct mips32_operand *ensure(struct mips32_operand *op, 
@@ -50,13 +50,13 @@ struct mips32_operand *ensure(struct mips32_operand *op,
         list<mips32_code *>::iterator &it, int modified);
 void print_variable_descriptors(FILE *f);
 void print_register_descriptors(FILE *f);
-void push_register(char *reg_name, 
+void push_register(const char *reg_name, 
         list<mips32_code *> &l,
         list<mips32_code *>::iterator &it);
-void pop_register(char *reg_name, 
+void pop_register(const char *reg_name, 
         list<mips32_code *> &l,
         list<mips32_code *>::iterator &it);
-struct mips32_code *move(char *reg_src, char *reg_dst);
+struct mips32_code *move(const char *reg_src, const char *reg_dst);
 void load(char *variable, char *reg_name,
         list<mips32_code *> &l,
         list<mips32_code *>::iterator &it);
@@ -123,6 +123,12 @@ void find_basic_blocks(struct ir_code *code) {
             }
             start = next;
             function_name = get_operand_name(code->op[0]);
+            // 对于除了main函数之外的函数，我们都为其加上func前缀
+            // 以防止用户写出一些名为lw、add、sw之类的函数
+            // 这会导致汇编代码中出现一个与指令名一样的label
+            // 会导致错误
+            if(strcmp(function_name, "main"))
+                function_name = Asprintf("func_%s", function_name);
         }
         code = next;
     }
@@ -453,7 +459,8 @@ void select_instruction() {
                             }
                             narg++;
                         }
-                        op1 = create_mips32_operand(MIPS32_OP_NAME, get_operand_name(code->op[1]));
+                        op1 = create_mips32_operand(MIPS32_OP_NAME, 
+                                Asprintf("func_%s", get_operand_name(code->op[1])));
                         c = create_mips32_code(MIPS32_JAL, 1, op1);
                         l.push_back(c);
                         op1 = create_mips32_operand(MIPS32_OP_REGISTER, get_operand_name(code->op[0]));
@@ -524,7 +531,7 @@ void select_instruction() {
 }
 
 void print_instructions(FILE *f) {
-    char *common = ""
+    const char *common = ""
         ".data\n"
         "_prompt: .asciiz \"Enter an integer:\"\n"
         "_ret: .asciiz \"\\n\"\n"
@@ -595,14 +602,14 @@ void epilogue(list<mips32_code *> &l,
 }
 
 
-struct mips32_code *move(char *reg_src, char *reg_dst) {
+struct mips32_code *move(const char *reg_src, const char *reg_dst) {
     struct mips32_operand *op1 = create_mips32_operand(MIPS32_OP_REGISTER, reg_src);
     struct mips32_operand *op2 = create_mips32_operand(MIPS32_OP_REGISTER, reg_dst);
     struct mips32_code *c = create_mips32_code(MIPS32_MOVE, 2, op2, op1);
     return c;
 }
 
-void push_register(char *reg_name, 
+void push_register(const char *reg_name, 
         list<mips32_code *> &l,
         list<mips32_code *>::iterator &it) {
 
@@ -624,7 +631,7 @@ void push_register(char *reg_name,
     it++;
 }
 
-void pop_register(char *reg_name, 
+void pop_register(const char *reg_name, 
         list<mips32_code *> &l,
         list<mips32_code *>::iterator &it) {
     // lw reg, 0($sp)
@@ -729,7 +736,7 @@ void flush_used_register(list<mips32_code *> &l,
 }
 
 void register_allocation() {
-    int count = 0;
+    // int count = 0;
     for(unsigned i = 0; i < functions.size(); i++) {
         // 处理每个函数
         init_descriptors();
@@ -1109,7 +1116,7 @@ struct mips32_operand *get_register_operand(struct operand *op, list<struct mips
 }
 
 
-struct mips32_address *create_mips32_address(char *base, int bias) {
+struct mips32_address *create_mips32_address(const char *base, int bias) {
     struct mips32_address *addr = (struct mips32_address *)Calloc(1, sizeof(struct mips32_address));
     addr->base_register = Strdup(base);
     addr->bias = bias;
