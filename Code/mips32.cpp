@@ -32,7 +32,9 @@ struct basic_block {
 struct function {
     vector<struct basic_block> basic_blocks;
     char *name;
-    list<mips32_code *> prologue;
+    list<mips32_code *> prologue, epilogue;
+    // 栈桢中局部变量（数组、结构体）所占的空间
+    int frame_size;
 };
 
 vector<function> functions;
@@ -46,7 +48,7 @@ struct mips32_operand *get_register_operand(struct operand *op, list<struct mips
 struct mips32_operand *ensure(struct mips32_operand *op, 
         list<mips32_code *> &l,
         list<mips32_code *>::iterator &it, int modified);
-void print_variable_descritors(FILE *f);
+void print_variable_descriptors(FILE *f);
 void print_register_descriptors(FILE *f);
 void push_register(char *reg_name, 
         list<mips32_code *> &l,
@@ -61,6 +63,10 @@ void load(char *variable, char *reg_name,
 void free_register(struct mips32_register_descriptor *r, 
         list<mips32_code *> &l,
         list<mips32_code *>::iterator &it);
+void spill_register(struct mips32_register_descriptor *r, 
+        list<mips32_code *> &l,
+        list<mips32_code *>::iterator &it);
+char *get_mips32_operand_name(struct mips32_operand *op);
 
 // 将代码分割为基本块的大小
 void find_basic_blocks(struct ir_code *code) {
@@ -186,6 +192,9 @@ void find_basic_blocks(struct ir_code *code) {
 // 扫描基本块，对每个基本块进行指令选择，但是不进行寄存器分配
 void select_instruction() {
     for(unsigned i = 0; i < functions.size(); i++) {
+        int nparam= 0;
+        vector<struct ir_code *> args;
+        int narg;
         for(unsigned j = 0; j < functions[i].basic_blocks.size(); j++) {
             struct ir_code *code = functions[i].basic_blocks[j].code;
             list<struct mips32_code *> &l = functions[i].basic_blocks[j].machine_code;
@@ -412,14 +421,38 @@ void select_instruction() {
                         l.push_back(c);
                         break;
                     case IR_DEC:
+                        // DEC t size
+                        // addi reg(t), $fp, -frame_size
+                        functions[i].frame_size += code->op[1]->u.value;
+
+                        op1 = create_mips32_operand(MIPS32_OP_REGISTER, get_operand_name(code->op[0]));
+                        op2 = create_mips32_operand(MIPS32_OP_REGISTER, "$fp");
+                        op3 = create_mips32_operand(MIPS32_OP_IMMEDIATE, -functions[i].frame_size);
+                        c = create_mips32_code(MIPS32_ADDI, 3, op1, op2, op3);
+                        l.push_back(c);
                         break;
                     case IR_ARG:
+                        args.push_back(code);
                         break;
                     case IR_CALL:
                         // x := CALL f
                         // translate into
                         // jal f
                         // move reg(x), $v0
+                        // 准备参数
+                        while(!args.empty()) {
+                            if(narg >= 4)
+                                app_error("too many arguments");
+                            else {
+                                struct ir_code *arg = args.back();
+                                args.pop_back();
+                                op1 = create_mips32_operand(MIPS32_OP_REGISTER, Asprintf("$a%d", narg));
+                                op2 = get_register_operand(arg->op[0], l);
+                                c = create_mips32_code(MIPS32_MOVE, 2, op1, op2);
+                                l.push_back(c);
+                            }
+                            narg++;
+                        }
                         op1 = create_mips32_operand(MIPS32_OP_NAME, get_operand_name(code->op[1]));
                         c = create_mips32_code(MIPS32_JAL, 1, op1);
                         l.push_back(c);
@@ -427,12 +460,59 @@ void select_instruction() {
                         op2 = create_mips32_operand(MIPS32_OP_REGISTER, "$v0");
                         c = create_mips32_code(MIPS32_MOVE, 2, op1, op2);
                         l.push_back(c);
+                        args.clear();
+                        narg = 0;
                         break;
                     case IR_PARAM:
+                        // PARAM t
+                        // translate into
+                        // if nparam < 4
+                        //    move reg(t), $a(nparam)
+                        // else
+                        //    lw reg(t), ((nparam - 4) * 4 + 8)($fp)
+                        if(nparam < 4) {
+                            op1 = create_mips32_operand(MIPS32_OP_REGISTER, get_operand_name(code->op[0]));
+                            op2 = create_mips32_operand(MIPS32_OP_REGISTER, Asprintf("$a%d", nparam));
+                            c = create_mips32_code(MIPS32_MOVE, 2, op1, op2);
+                            l.push_back(c);
+                        }
+                        else {
+                            op1 = create_mips32_operand(MIPS32_OP_REGISTER, get_operand_name(code->op[0]));
+                            // bias is 0
+                            addr = create_mips32_address("$fp", (nparam - 4) * 4 + 8);
+                            op2 = create_mips32_operand(MIPS32_OP_ADDRESS, addr);
+                            c = create_mips32_code(MIPS32_LW, 2, op1, op2);
+                            l.push_back(c);
+                        }
+                        nparam++;
                         break;
                     case IR_READ:
+                        // READ x
+                        // translate into
+                        // jal read
+                        // move reg(x), $v0
+                        op1 = create_mips32_operand(MIPS32_OP_NAME, "read");
+                        c = create_mips32_code(MIPS32_JAL, 1, op1);
+                        l.push_back(c);
+
+                        op1 = create_mips32_operand(MIPS32_OP_REGISTER, get_operand_name(code->op[0]));
+                        op2 = create_mips32_operand(MIPS32_OP_REGISTER, "$v0");
+                        c = create_mips32_code(MIPS32_MOVE, 2, op1, op2);
+                        l.push_back(c);
                         break;
                     case IR_WRITE:
+                        // WRITE x
+                        // translate into
+                        // move $a0, reg(x)
+                        // jal write
+                        op1 = create_mips32_operand(MIPS32_OP_REGISTER, "$a0");
+                        op2 = get_register_operand(code->op[0], l);
+                        c = create_mips32_code(MIPS32_MOVE, 2, op1, op2);
+                        l.push_back(c);
+
+                        op1 = create_mips32_operand(MIPS32_OP_NAME, "write");
+                        c = create_mips32_code(MIPS32_JAL, 1, op1);
+                        l.push_back(c);
                         break;
                     default:
                         break;
@@ -443,6 +523,41 @@ void select_instruction() {
     }
 }
 
+void print_instructions(FILE *f) {
+    char *common = ""
+        ".data\n"
+        "_prompt: .asciiz \"Enter an integer:\"\n"
+        "_ret: .asciiz \"\\n\"\n"
+        ".globl main\n"
+        ".text\n"
+        "read:\n"
+        "  li $v0, 4\n"
+        "  la $a0, _prompt\n"
+        "  syscall\n"
+        "  li $v0, 5\n"
+        "  syscall\n"
+        "  jr $ra\n"
+        "\n"
+        "write:\n"
+        "  li $v0, 1\n"
+        "  syscall\n"
+        "  li $v0, 4\n"
+        "  la $a0, _ret\n"
+        "  syscall\n"
+        "  move $v0, $0\n"
+        "  jr $ra\n"
+        "\n";
+    fprintf(f, "%s", common);
+    for(unsigned i = 0; i < functions.size(); i++) {
+        print_mips32_codes(functions[i].prologue, f);
+        for(unsigned j = 0; j < functions[i].basic_blocks.size(); j++) {
+            list<struct mips32_code *> &l = functions[i].basic_blocks[j].machine_code;
+            print_mips32_codes(l, f);
+        }
+        print_mips32_codes(functions[i].epilogue, f);
+    }
+}
+
 // 我感觉使用map让我这个写起来变得繁琐了！
 list<struct mips32_register_descriptor *> used_registers;
 list<struct mips32_register_descriptor *> unused_registers;
@@ -450,7 +565,7 @@ map<string, struct mips32_variable_descriptor *> variables;
 vector<char *> callee_saved_registers;
 vector<char *> callee_saved_variables;
 
-list<mips32_code *> prologue(char *name) {
+list<mips32_code *> prologue(char *name, int frame_size) {
     list<mips32_code *> l;
     struct mips32_operand *op1 = create_mips32_operand(MIPS32_OP_NAME, name);
     struct mips32_code *c = create_mips32_code(MIPS32_LABEL, 1, op1);
@@ -459,6 +574,12 @@ list<mips32_code *> prologue(char *name) {
     push_register("$ra", l, it);
     push_register("$fp", l, it);
     l.push_back(move("$sp", "$fp"));
+    // 给局部变量分配空间
+    op1 = create_mips32_operand(MIPS32_OP_REGISTER, "$sp");
+    struct mips32_operand *op2 = create_mips32_operand(MIPS32_OP_REGISTER, "$sp");
+    struct mips32_operand *op3 = create_mips32_operand(MIPS32_OP_IMMEDIATE, -frame_size);
+    c = create_mips32_code(MIPS32_ADDI, 3, op1, op2, op3);
+    l.push_back(c);
     return l;
 }
 
@@ -532,27 +653,35 @@ void init_descriptors() {
     variables.clear();
     callee_saved_registers.clear();
     callee_saved_variables.clear();
-    stack_top = 0;
 
     // 由于所有寄存器都是callee saved，所以刚开始所有寄存器都无法使用
     // 主要是t0-t9 s0-s7
     char *variable_name = NULL, *reg_name = NULL;
     struct mips32_variable_descriptor *v = NULL;
     struct mips32_register_descriptor *reg = NULL;
-    /*
-       for(int i = 0; i <= 9; i++) {
-       reg_name = Asprintf("$t%d", i);
-       variable_name = Asprintf("saved_%s", reg_name);
-       v.mem_addr = NULL;
-       v.reg = reg_name;
-       saved_registers[variable_name] = v;
-       reg.modified = 0;
-       reg.variable = NULL;
-    // reg.variable = variable_name;
-    unused_registers[reg_name] = reg;
+
+    for(int i = 0; i <= 9; i++) {
+        reg_name = Asprintf("$t%d", i);
+        variable_name = Asprintf("saved_%s", reg_name);
+        v = 
+            (struct mips32_variable_descriptor *)
+            Calloc(1, sizeof(struct mips32_variable_descriptor));
+        reg = 
+            (struct mips32_register_descriptor *)
+            Calloc(1, sizeof(struct mips32_register_descriptor));
+        v->name = variable_name;
+        v->mem_addr = NULL;
+        v->reg = reg;
+        variables[variable_name] = v;
+        reg->modified = 0;
+        reg->name = reg_name;
+        reg->variable = v;
+        used_registers.push_back(reg);
+        callee_saved_registers.push_back(reg_name);
+        callee_saved_variables.push_back(variable_name);
     }
-    */
-    for(int i = 0; i <= 2; i++) {
+
+    for(int i = 0; i <= 7; i++) {
         reg_name = Asprintf("$s%d", i);
         variable_name = Asprintf("saved_%s", reg_name);
         v = 
@@ -565,8 +694,8 @@ void init_descriptors() {
         v->mem_addr = NULL;
         v->reg = reg;
         variables[variable_name] = v;
-        reg->modified = 1;
-        reg->name = Asprintf("$s%d", i);
+        reg->modified = 0;
+        reg->name = reg_name;
         reg->variable = v;
         used_registers.push_back(reg);
         callee_saved_registers.push_back(reg_name);
@@ -582,26 +711,46 @@ bool is_variable(char *s) {
 }
 
 // 将在这个函数内发生变化的寄存器的值重新存回内存
-// 即将所有使用过的寄存器全部刷回内存中去
 void flush_used_register(list<mips32_code *> &l,
         list<mips32_code *>::iterator &it) {
-    while(!used_registers.empty()) {
-        // 将第一个取出来，并将其spill
-        struct mips32_register_descriptor *r = used_registers.front();
-        used_registers.pop_front();
-        free_register(r, l, it);
+    for(auto iter = used_registers.begin(); 
+            iter != used_registers.end(); iter++) {
+        struct mips32_register_descriptor *r = *iter;
+        // 如果这个寄存器里面放的值是变量
+        // 则需flush掉
+        // 如果装的不是变量，而是saved_***之类的
+        // 则说明这个寄存器尚未被使用
+        if(is_variable(r->variable->name)) {
+            free_register(r, l, it);
+            iter = used_registers.erase(iter);
+            iter--;
+        }
     }
 }
 
 void register_allocation() {
+    int count = 0;
     for(unsigned i = 0; i < functions.size(); i++) {
         // 处理每个函数
         init_descriptors();
-        functions[i].prologue = prologue(functions[i].name);
+        // 放在最上面的是局部变量（数组）
+        stack_top = 0 - functions[i].frame_size;
+        functions[i].prologue = prologue(functions[i].name, functions[i].frame_size);
+        // 不管怎样，结尾一定要加上这个
+        // 因为如果函数没有return的话
+        // 我们要通过这个让函数能正常返回
+        auto iter = functions[i].epilogue.begin();
+        epilogue(functions[i].epilogue, iter);
         for(unsigned j = 0; j < functions[i].basic_blocks.size(); j++) {
             list<struct mips32_code *> &l = functions[i].basic_blocks[j].machine_code;
             list<struct mips32_code *>::iterator it;
             bool flushed = false;
+            /*
+            fprintf(stdout, "********************************\n");
+            print_variable_descriptors(stdout);
+            print_register_descriptors(stdout);
+            printf("\n");
+            */
             for(it = l.begin(); it != l.end(); it++) {
                 struct mips32_code *code = *it;
                 struct mips32_operand *op1 = NULL;
@@ -652,7 +801,6 @@ void register_allocation() {
                         // 在return之前必须要加上epilogue
                         flushed = true;
                         flush_used_register(l, it);
-
                         epilogue(l, it);
                         break;
                     case MIPS32_J:
@@ -662,22 +810,21 @@ void register_allocation() {
                     default:
                         break;
                 }
-            fprintf(stdout, "***************\n");
-            print_variable_descritors(stdout);
-            fprintf(stdout, "***************\n");
-            print_register_descriptors(stdout);
+                /*
+                fprintf(stdout, "%d:\n", ++count);
+                fprintf(stdout, "------------------------\n");
+                print_variable_descriptors(stdout);
+                print_register_descriptors(stdout);
+                fprintf(stdout, "\n");
+                */
             }
             if(!flushed)
                 flush_used_register(l, it);
-            fprintf(stdout, "***************\n");
-            print_variable_descritors(stdout);
-            fprintf(stdout, "***************\n");
-            print_register_descriptors(stdout);
         }
     }
 }
 
-void print_variable_descritor(struct mips32_variable_descriptor *v, FILE *f) {
+void print_variable_descriptor(struct mips32_variable_descriptor *v, FILE *f) {
     if(v->reg)
         fprintf(f, "\t%s", v->reg->name);
     else
@@ -688,10 +835,10 @@ void print_variable_descritor(struct mips32_variable_descriptor *v, FILE *f) {
         fprintf(f, "\tnull\n");
 }
 
-void print_variable_descritors(FILE *f) {
+void print_variable_descriptors(FILE *f) {
     for(auto it = variables.begin(); it != variables.end(); it++) {
         fprintf(f, "%s", it->first.c_str());
-        print_variable_descritor(it->second, f);
+        print_variable_descriptor(it->second, f);
     }
 }
 
@@ -738,7 +885,8 @@ void load(char *variable, char *reg_name,
                 // already loaded
                 return;
             else {
-                used_registers.erase(iter);
+                iter = used_registers.erase(iter);
+                iter--;
                 free_register(r, l, it);
                 break;
             }
@@ -750,6 +898,8 @@ void load(char *variable, char *reg_name,
             r = *iter;
             if(!strcmp(reg_name, r->name)) {
                 found = true;
+                iter = unused_registers.erase(iter);
+                iter--;
                 break;
             }
         }
@@ -815,9 +965,34 @@ struct mips32_operand *ensure(struct mips32_operand *op,
 }
 
 // 在stack上分配出size的大小的空间，并返回空间的地址
-struct mips32_address *allocate_space_on_stack(int size) {
+struct mips32_address *allocate_space_on_stack(int size,
+        list<mips32_code *> &l,
+        list<mips32_code *>::iterator &it) {
     stack_top -= size;
+    struct mips32_operand *op1 = create_mips32_operand(MIPS32_OP_REGISTER, "$sp");
+    struct mips32_operand *op2 = create_mips32_operand(MIPS32_OP_REGISTER, "$sp");
+    struct mips32_operand *op3 = create_mips32_operand(MIPS32_OP_IMMEDIATE, -size);
+    struct mips32_code *c = create_mips32_code(MIPS32_ADDI, 3, op1, op2, op3);
+    it = l.insert(it, c);
+    it++;
     return create_mips32_address(Strdup("$fp"), stack_top);
+}
+
+void spill_register(struct mips32_register_descriptor *r, 
+        list<mips32_code *> &l,
+        list<mips32_code *>::iterator &it) {
+    struct mips32_variable_descriptor *v = r->variable;
+    // 找到这个变量对应的内存地址
+    // 此变量尚未被spill过，没有内存地址
+    if(!v->mem_addr)
+        v->mem_addr = allocate_space_on_stack(4, l, it);
+    // 进行spill
+    struct mips32_operand *op1 = create_mips32_operand(MIPS32_OP_REGISTER, r->name);
+    struct mips32_operand *op2 = create_mips32_operand(MIPS32_OP_ADDRESS, v->mem_addr);
+    struct mips32_code *c = create_mips32_code(MIPS32_SW, 2, op1, op2);
+    it = l.insert(it, c);
+    it++;
+    r->modified = 0;
 }
 
 // 将寄存器进行释放
@@ -825,21 +1000,11 @@ struct mips32_address *allocate_space_on_stack(int size) {
 void free_register(struct mips32_register_descriptor *r, 
         list<mips32_code *> &l,
         list<mips32_code *>::iterator &it) {
-    // 这个寄存器确实被使用了
+    // 这个寄存器值被改变了
     // 需要进行spill
     struct mips32_variable_descriptor *v = r->variable;
-    if(r->modified) {
-        // 找到这个变量对应的内存地址
-        // 此变量尚未被spill过，没有内存地址
-        if(!v->mem_addr)
-            v->mem_addr = allocate_space_on_stack(4);
-        // 进行spill
-        struct mips32_operand *op1 = create_mips32_operand(MIPS32_OP_REGISTER, r->name);
-        struct mips32_operand *op2 = create_mips32_operand(MIPS32_OP_ADDRESS, v->mem_addr);
-        struct mips32_code *c = create_mips32_code(MIPS32_SW, 2, op1, op2);
-        it = l.insert(it, c);
-        it++;
-    }
+    if(r->modified || !v->mem_addr)
+        spill_register(r, l, it);
     // 重新放到未使用寄存器中
     v->reg = NULL;
     r->modified = 0;
@@ -877,55 +1042,42 @@ struct mips32_register_descriptor*allocate(char *name,
 }
 
 LINKAGE void mips32_codegen(struct ir_code *code, FILE *f) {
-    print_ir_codes(code, f);
+    // print_ir_codes(code, f);
     // the first step is to find basic block
     find_basic_blocks(code);
-    /*
-    // 输出分块后的指令
-    FILE *tmp = Fopen("1.ir", "w");
-    for(unsigned i = 0; i < functions.size(); i++) {
-    fprintf(tmp, "*************************\n");
-    for(unsigned j = 0; j < functions[i].basic_blocks.size(); j++) {
-    ;
-    fprintf(tmp, "-------------------------\n");
-    print_ir_codes(functions[i].basic_blocks[j].code, tmp);
-    }
-    }
-    */
     select_instruction();
     // 输出选择的指令
-    FILE *tmp = Fopen("out.s", "w");
-    for(unsigned i = 0; i < functions.size(); i++) {
-        fprintf(tmp, "*************************\n");
-        for(unsigned j = 0; j < functions[i].basic_blocks.size(); j++) {
-            list<struct mips32_code *> &l = functions[i].basic_blocks[j].machine_code;
-            fprintf(tmp, "-------------------------\n");
-            print_mips32_codes(l, tmp);
-        }
-    }
+    /*
+       FILE *tmp = Fopen("out.s", "w");
+       for(unsigned i = 0; i < functions.size(); i++) {
+       fprintf(tmp, "*************************\n");
+       for(unsigned j = 0; j < functions[i].basic_blocks.size(); j++) {
+       list<struct mips32_code *> &l = functions[i].basic_blocks[j].machine_code;
+       print_mips32_codes(l, tmp);
+       }
+       }
+       */
 
     register_allocation();
-    for(unsigned i = 0; i < functions.size(); i++) {
-        // fprintf(stderr, "*************************\n");
-        print_mips32_codes(functions[i].prologue, stderr);
-        for(unsigned j = 0; j < functions[i].basic_blocks.size(); j++) {
-            list<struct mips32_code *> &l = functions[i].basic_blocks[j].machine_code;
-            // fprintf(stderr, "-------------------------\n");
-            print_mips32_codes(l, stderr);
-        }
-    }
+    print_instructions(f);
 }
+
 
 // given a immediate/register operand, return a register operand
 // the li code is generated for immediate operand
 struct mips32_operand *get_register_operand(struct operand *op, list<struct mips32_code *> &l) {
+    struct operand *reg = NULL;
+    struct mips32_operand *op1 = NULL;
+    struct mips32_operand *op2 = NULL;
+    struct mips32_code *c = NULL;
+    extern int var_no_counter;
+
     if(op->kind == OP_CONSTANT) {
-        extern int var_no_counter;
         // create a new virtual register to hold the value
-        struct operand *reg = create_operand(OP_VARIABLE, var_no_counter++);
-        struct mips32_operand *op1 = create_mips32_operand(MIPS32_OP_REGISTER, get_operand_name(reg));
-        struct mips32_operand *op2 = create_mips32_operand(MIPS32_OP_IMMEDIATE, op->u.value);
-        struct mips32_code *c = create_mips32_code(MIPS32_LI, 2, op1, op2);
+        reg = create_operand(OP_VARIABLE, var_no_counter++);
+        op1 = create_mips32_operand(MIPS32_OP_REGISTER, get_operand_name(reg));
+        op2 = create_mips32_operand(MIPS32_OP_IMMEDIATE, op->u.value);
+        c = create_mips32_code(MIPS32_LI, 2, op1, op2);
         l.push_back(c);
         return op1;
     }
@@ -935,11 +1087,22 @@ struct mips32_operand *get_register_operand(struct operand *op, list<struct mips
     else if(op->kind == OP_GET_ADDRESS) {
         // 取数组首地址
         // DEC t2 8
-        // 则我们在实现时，是不允许再向t2这个virtal register复制
+        // 则我们在实现时，是不允许再向t2这个virtal register赋值
         // 这个virtual register里面装的值就是数组的首地址
         return create_mips32_operand(MIPS32_OP_REGISTER, Asprintf("t%d", op->u.var_no));
     }
+    else if(op->kind == OP_ADDRESS) {
+        reg = create_operand(OP_VARIABLE, var_no_counter++);
+        op1 = create_mips32_operand(MIPS32_OP_REGISTER, get_operand_name(reg));
+        // bias is 0
+        struct mips32_address *addr = create_mips32_address(Asprintf("t%d", op->u.var_no), 0);
+        op2 = create_mips32_operand(MIPS32_OP_ADDRESS, addr);
+        c = create_mips32_code(MIPS32_LW, 2, op1, op2);
+        l.push_back(c);
+        return op1;
+    }
     else {
+        printf("%d %s", op->kind, get_operand_name(op));
         app_error(Asprintf("Line %d: Invalid operand", __LINE__));
         return NULL;
     }
@@ -1014,13 +1177,13 @@ char *get_mips32_operand_name(struct mips32_operand *op) {
 }
 
 const char *mips32_code_fmt[] = {
-    "%s:", "li %s, %s", "move %s, %s", 
-    "addi %s, %s, %s", "add %s, %s, %s", "sub %s, %s, %s",
-    "mul %s, %s, %s", "div %s, %s", "mflo %s",
-    "lw %s, %s", "sw %s, %s", "j %s",
-    "jal %s", "jr %s", "beq %s, %s, %s",
-    "bne %s, %s, %s", "bgt %s, %s, %s", "blt %s, %s, %s", 
-    "bge %s, %s, %s", "ble %s, %s, %s" 
+    "%s:", "  li %s, %s", "  move %s, %s", 
+    "  addi %s, %s, %s", "  add %s, %s, %s", "  sub %s, %s, %s",
+    "  mul %s, %s, %s", "  div %s, %s", "  mflo %s",
+    "  lw %s, %s", "  sw %s, %s", "  j %s",
+    "  jal %s", "  jr %s", "  beq %s, %s, %s",
+    "  bne %s, %s, %s", "  bgt %s, %s, %s", "  blt %s, %s, %s", 
+    "  bge %s, %s, %s", "  ble %s, %s, %s" 
 };
 
 void print_mips32_code(struct mips32_code *code, FILE *f);
