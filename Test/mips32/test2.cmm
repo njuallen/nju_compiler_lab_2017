@@ -1,0 +1,16 @@
+int main() {
+    int i = 100;
+    int j = 1000;
+    if(i)
+        i = 1;
+    if(i >= j)
+        i = 2;
+    if(-i)
+        i = 3;
+    if(!i)
+        i = 4;
+    if(j = -i)
+        i = 5;
+    write(i);
+    return 0;
+}

@@ -1,0 +1,37 @@
+int fact(int n) {
+    if(n == 0 || n == 1)
+        return 1;
+    else
+        return fact(n - 1) * n;
+}
+
+int main() {
+    int i;
+    int f[15];
+    int ans[13];
+    ans[0] = 1;
+    ans[1] = 1;
+    ans[2] = 2;
+    ans[3] = 6;
+    ans[4] = 24;
+    ans[5] = 120;
+    ans[6] = 720;
+    ans[7] = 5040;
+    ans[8] = 40320;
+    ans[9] = 362880;
+    ans[10] = 3628800;
+    ans[11] = 39916800;
+    ans[12] = 479001600;
+
+    while(i < 13) {
+        f[i] = fact(i);
+        if(!(f[i] == ans[i])) {
+            write(1);
+            return 1;
+        }
+        i = i + 1;
+    }
+
+    write(0);
+    return 0;
+}

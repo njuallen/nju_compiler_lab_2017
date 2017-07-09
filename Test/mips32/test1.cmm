@@ -1,0 +1,22 @@
+// test while
+int main() {
+    int a = 1;
+    int i = 100;
+    int j = 0;
+    while(i >= 0 && j <= 100) {
+        i = i - 1;
+        j = j + 1;
+        a = a + 1;
+    }
+
+    i = 100;
+    j = 0;
+
+    while(i >= 0 || j <= 100) {
+        i = i - 1;
+        j = j + 1;
+        a = a + 1;
+    }
+    write(a);
+    return 0;
+}

@@ -1,0 +1,12 @@
+// test if
+int main() {
+    int a = 1;
+    int b;
+    a = 2;
+    if(a > 0)
+        b = 2;
+    else
+        b = 3;
+    write(b);
+    return 0;
+}

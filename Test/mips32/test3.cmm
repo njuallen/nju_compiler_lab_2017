@@ -1,0 +1,9 @@
+// test array
+int main() {
+    int a[100];
+    int b;
+    a[0] = 1;
+    b = a[0];
+    write(b);
+    return 0;
+}
