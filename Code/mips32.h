@@ -40,11 +40,24 @@ struct mips32_code {
     struct mips32_operand *op[MIPS32_MAX_OPERAND];
 };
 
+struct mips32_register_descriptor;
+
 struct mips32_variable_descriptor {
     // 由于我们在这里不打算支持全局变量
     // 所以数据我们全都放在栈上
-    // 那这个地址就是相对于当前栈的base pointer的偏移量
-    int mem_addr;
+    // 这个variable在栈上的位置
+    char *name;
+    struct mips32_address *mem_addr;
+    // 这个variable在哪个register中
+    struct mips32_register_descriptor *reg;
+};
+
+struct mips32_register_descriptor {
+    // 这个寄存器的内容是否被修改
+    // 寄存器的内容是否变量在内存中的值一致
+    int modified;
+    char *name;
+    struct mips32_variable_descriptor *variable;
 };
 
 LINKAGE void mips32_codegen(struct ir_code *code, FILE *f);

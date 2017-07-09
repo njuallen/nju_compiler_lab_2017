@@ -24,7 +24,7 @@ test: parser
 test-%:
 	@python2.7 test_parser.py ../Test/semantics/ $@
 clean:
-	@rm -rf lex.yy.c syntax.tab.c syntax.tab.h parser adt mips32.o 2>/dev/null >/dev/null
+	@rm -rf lex.yy.c syntax.tab.c syntax.tab.h parser adt mips32.o test.o 2>/dev/null >/dev/null
 	@rm -rf ../Test/semantics/*.out ../Test/semantics/*.correct
 	@chmod -w ../Test/semantics/*.cmm ../Test/semantics/*.answer
 	@chmod -w ../Test/syntax/*.cmm ../Test/syntax/*.answer
